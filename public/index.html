@@ -1,0 +1,119 @@
+<!doctype html>
+<html>
+	<head>
+	<title>ClassMatic</title>
+	<link rel="stylesheet" type="text/css" href="style.css">
+	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.0/angular.min.js"></script>
+	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.0/angular-animate.js"></script>
+	<script src="http://code.jquery.com/jquery-2.1.3.min.js"></script>
+	<script src="./socket.io/socket.io.js"></script>
+	<script type="text/javascript">
+		angular.module('ClassMaticApp', ['ClassMaticApp.controllers', 'ClassMaticApp.directives', 'ngAnimate']);
+		
+		angular.module('ClassMaticApp.directives', []).directive('viewer', function ($location) {
+			return {
+				restrict: 'E',
+				replace: false,
+				link: function (scope, element, attrs) {
+					var link = $location.protocol() + "://" + $location.host() + ':' + $location.port() + '/download?active=' + attrs.active + '&hash=' + attrs.hash;
+					element.prepend('<video controls style="max-height: 500px; max-width: 500px" src="' + link + '" onerror="this.remove();" onloadeddata="$(this).siblings().remove(); $(this).parent().css(\'display\', \'\')">');
+					element.prepend('<img style="max-height: 400px; max-width: 400px" src="' + link + '" onerror="this.remove();" onload="$(this).siblings().remove(); $(this).parent().css(\'display\', \'\')">');
+					element.prepend('<iframe src="https://docs.google.com/gview?url=' + encodeURIComponent(link) + '&embedded=true" style="width:600px; height:500px;" frameborder="0" onload="$(this).parent().css(\'display\', \'\')"></iframe>');
+				}
+			};
+		});
+
+		angular.module('ClassMaticApp.controllers', []).controller('mainController', function($scope, $interval) {
+			$scope.files = {};
+			$scope.folder = "uncategorized";
+			$scope.custom = "no";
+			$scope.currentDate = Date.now();
+			$interval(function() {
+				$scope.currentDate = Date.now();
+			}, 1000);
+			$scope.classes = ['MCS1', 'MCS2', 'MCS3'];
+			$scope.activeClass = $scope.classes[0];
+			$scope.socket = io();
+			$scope.socket.on('reconnect', function(num) {
+				$scope.requestFiles();
+			});
+			$scope.requestFiles = function() {
+				$scope.socket.emit('message', $scope.activeClass);
+			}
+			$scope.socket.on('message', function (msg){
+				$scope.$apply(function () {
+					for (var className in msg) {
+						if ($scope.files[className] || $scope.activeClass == className) {
+							$scope.files[className] = msg[className];
+							$scope.files[className].uncategorized = $scope.files[className].uncategorized ? $scope.files[className].uncategorized : [];
+						}
+					}
+				});	
+			});
+		});
+	</script>
+	<style type="text/css">
+		body { font-family: "Courier New"; }
+	</style>
+</head>
+<body ng-app="ClassMaticApp">
+	<div ng-controller="mainController">
+		<iframe name="hidden-iframe" style="display: none;" onLoad="try { document.getElementById('title').value = ''; document.getElementById('file').value = ''; document.getElementById('folder').value = '' } catch (e) {}"></iframe>
+		<table cellpadding="10" cellspacing="0" border="0" width="100%">
+			<tr>
+				<td valign="top" style="border-right: 1px solid black">
+					<form method='post' target='hidden-iframe' action='upload' enctype='multipart/form-data'>
+						<table cellpadding="10" cellspacing="0" border="0">
+							<tr>
+								<td>Class:</td>
+								<td><select ng-options="class for class in classes" ng-change="requestFiles()" ng-init="requestFiles()" ng-model="activeClass"></select></td>
+							</tr>
+							<tr>
+								<td>Title:</td>
+								<td><input id="title" type="text" name='title' autocomplete="off" ng-required="true"></td>
+							</tr>
+							<tr>
+								<td valign="top">Choose:</td>
+								<td>
+									<input type="radio" name="customfolder" value="no" ng-model="custom">Choose Existing Folder<br />
+									<input type="radio" name="customfolder" value="yes" ng-model="custom">Create New Folder
+								</td>
+							</tr>
+							<tr>
+								<td>Folder:</td>
+								<td>
+									<select ng-if="custom == 'no'" ng-model="folder" ng-options="folder as folder for (folder, object) in files[activeClass]" name='folder'></select>
+									<input ng-if="custom == 'yes'" id="folder" type="text" name='folder' ng-required="true" autocomplete="off">
+								</td>
+							</tr>
+							<tr>
+								<td>File:</td>
+								<td><input id="file" type='file' name='{{activeClass}}' ng-required="true" multiple="multiple"></td>
+							</tr>
+							<tr>
+								<td colspan="2">
+									<input type='hidden' name='reveal' value='{{currentDate - 1000}}'>
+									<input type='submit' value='Submit'>
+								</td>
+							</tr>
+						</table>
+					</form>
+				</td>
+				<td valign="top" width="100%">
+					<ul class="example-animate-container">
+						<li class="animate-repeat"  ng-repeat="(name, folder) in files[activeClass] track by name" ng-if="folder.length > 0">
+							<div><img src="folder.png" style="max-height: 35px"> <span style="vertical-align: top">{{name}}</span><div>
+							<ul class="example-animate-container">
+								<li class="animate-repeat" ng-repeat="file in folder | orderBy:'-date' track by file.hash" ng-if="currentDate >= file.reveal">
+									<b>{{file.title}}</b> - <a ng-href="download?active={{activeClass}}&hash={{file.hash}}" ng-bind="file.name"></a> (<a href="#" ng-click="preview[file.hash] = !preview[file.hash]">{{preview[file.hash] ? "close" : "preview"}}</a>, <a ng-href="delete?active={{activeClass}}&hash={{file.hash}}" target='hidden-iframe'>delete</a>) - uploaded {{file.date | date:"M/dd/yy 'at' h:mma"}}<br />
+									<viewer ng-if="preview[file.hash]" hash="{{file.hash}}" style="display: none" active="{{activeClass}}">
+								</li>
+							</ul>
+						</li>
+					</ul>
+				</td>
+			</tr>
+		</table>
+	</div>
+</body>
+</html>
