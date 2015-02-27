@@ -22,23 +22,130 @@ var getJSON = function(filename) {
 	return data;
 }
 
+var createFolder = function(foldername, activeClass) {
+	var root = dir + activeClass;
+	if (foldername) {
+		var parts = foldername.split("/");
+		for (var i = 0; i < parts.length; i++) {
+			root += "/" + parts[i];
+			try {
+				fs.mkdirSync(root);
+			} catch (e) { }
+		}
+	}
+	return root + "/";
+}
+
+var addWithoutCollisions = function(files, foldername, file) {
+	var parts = foldername.split("/");
+	if (parts.length > 1 && parts[0] !== "") {
+		if (files.folders) {
+			if (files.folders[parts[0]]) {
+				if (parts.length == 2) {
+					if (files.folders[parts[0]].files) {
+						for (var i = 0; i < files.folders[parts[0]].files.length; i++) {
+							if (files.folders[parts[0]].files[i].hash == file.hash) {
+								files.folders[parts[0]].files.splice(i, 1);
+								break;
+							}
+						}
+						files.folders[parts[0]].files.push(file);
+						return;
+					} else {
+						files.folders[parts[0]].files = [];
+						addWithoutCollisions(files, foldername, file);
+					}
+				} else {
+					addWithoutCollisions(files.folders[parts[0]], parts.slice(1).join("/"), file);
+				}
+			} else {
+				files.folders[parts[0]]= {};
+				addWithoutCollisions(files, foldername, file);
+			}
+		} else {
+			files.folders = {};
+			addWithoutCollisions(files, foldername, file);
+		}
+	} else {
+		if (files.files) {
+			for (var i = 0; i < files.files.length; i++) {
+				if (files.files[i].hash == file.hash) {
+					files.files.splice(i, 1);
+					break;
+				}
+			}
+		} else {
+			files.files = [];
+		}
+		files.files.push(file);
+		return;
+	}
+}
+
+var download = function(files, filename) {
+	filename = filename.split("/");
+	if (filename.length == 1) {
+		if (files.files) {
+			for (var i = 0; i < files.files.length; i++) {
+				if (files.files[i].hash == filename[0] && files.files[i].reveal <= Date.now()) {
+					return files.files[i].name;
+				}
+			}
+		}
+	}
+	return download(files.folders[filename[0]], filename.slice(1).join("/"));
+}
+
+var deleter = function(files, filename, activeClass, origfilename) {
+	filename = filename.split("/");
+	if (filename.length == 1) {
+		for (var i = 0; i < files.files.length; i++) {
+			if (files.files[i].hash == filename[0]) {
+				files.files.splice(i, 1);
+				try {
+					origfilename = origfilename == "" ? "" : origfilename + "/";
+					fs.unlinkSync(dir + activeClass + "/" + origfilename + filename[0] + ".file");
+				} catch (e) {
+					console.log(e);
+				}
+				if (files.files.length == 0) {
+					delete files.files;
+				}
+				if ((!files.files && !files.folders) || (!files.files && Object.keys(files.folders).length == 0)) {
+					return false;
+				}
+				return true;
+			}
+		}
+	}
+	if (!deleter(files.folders[filename[0]], filename.slice(1).join("/"), activeClass, origfilename + "/" + filename[0])) {
+		delete files.folders[filename[0]];
+		if (Object.keys(files.folders).length == 0) {
+			delete files.folders;
+		}
+		try {
+			console.log("Removing directory: " + filename[0]);
+			fs.rmdirSync(dir + activeClass + "/" + origfilename + "/" + filename[0]);
+		} catch (e) {
+			console.log(e);
+		}
+		if (!files.files && !files.folders) {
+			return false;
+		}
+	}
+	return true;
+}
+
 app.get('/download', function(req, res){
 	try {
 		var hash = req.query.hash;
 		var activeClass = req.query.active;
 		var filename;
 		var files = JSON.parse(fs.readFileSync(dir + activeClass + ".json", 'utf8'));
-		for (var folder in files) {		
-			for (var i = 0; i < files[folder].length; i++) {
-				if (files[folder][i].hash == hash && files[folder][i].reveal <= Date.now()) {
-					filename = files[folder][i].name;
-					break;
-				}
-			}
-		}
+		filename = download(files, hash);
 		if (filename) {
 			console.log("Downloading: " + hash + " -> " + filename);
-			var file = dir + activeClass + "/" + hash;
+			var file = dir + activeClass + "/" + hash + ".file";
 			res.setHeader('Content-disposition', 'attachment; filename=' + filename);
 			var filestream = fs.createReadStream(file);
 			filestream.pipe(res);
@@ -51,21 +158,7 @@ app.get('/delete', function(req, res){
 		var hash = req.query.hash;
 		var activeClass = req.query.active;
 		var files = getJSON(activeClass);
-		for (var folder in files[activeClass]) {
-			for (var i = 0; i < files[activeClass][folder].length; i++) {
-				if (files[activeClass][folder][i].hash == hash) {
-					try {
-						fs.unlinkSync(dir + activeClass + "/" + hash);
-					} catch (e) {
-						console.log("Could not delete " + hash);
-					}
-					files[activeClass][folder].splice(i, 1);
-					break;
-				}
-			}
-			if (files[activeClass][folder].length == 0) { delete files[activeClass][folder]; }
-		}
-		if (Object.keys(files[activeClass]).length > 0) {
+		if (deleter(files[activeClass], hash, activeClass, "")) {
 			fs.writeFileSync(dir + activeClass + ".json", JSON.stringify(files[activeClass]));
 		} else {
 			try {
@@ -76,8 +169,8 @@ app.get('/delete', function(req, res){
 			}
 		}
 		io.emit('message', files);
-	} catch (e) { res.send('Error'); }
-	res.send('File deleted');
+		res.send('File deleted');
+	} catch (e) { res.send("Error deleting"); }
 });
 
 app.route('/upload')
@@ -87,69 +180,77 @@ app.route('/upload')
 		var revealDate;
 		var theFolder;
         req.pipe(req.busboy);
-		req.busboy.on('field',function (fieldname,val){
+		req.busboy.on('field',function (fieldname, val){
 			if (fieldname == 'title') {
 				title = val;
 			} else if (fieldname == 'reveal') {
 				revealDate = val;
 			} else if (fieldname == 'folder') {
+				if (val.length > 1 && val.substring(0, 1) == '/') {
+					val = val.substring(1);
+				}
 				theFolder = val;
+				console.log("Folder: " + theFolder);
 			}
 		});
         req.busboy.on('file', function (activeClass, file, filename) {
-			try {
-				fs.mkdirSync(dir + activeClass);
-			} catch (e) { }
-			try { 
-				console.log("Uploading: " + filename);
-				fstream = fs.createWriteStream(dir + filename);
-				fstream.on('close', function () { 
-				
-					var tempfile = {};
-					tempfile["name"] = filename;
-					tempfile["title"] = title;
-					tempfile["hash"] = crypto.createHash('md5').update(fs.readFileSync(dir + filename), 'utf8').digest('hex');
-					tempfile["date"] = Date.now();
-					if (revealDate) {
-						tempfile["reveal"] = revealDate;
-					} else {
-						tempfile["reveal"] = tempfile["date"];
-					}
+			if (filename) {
+				try {
+					fs.mkdirSync(dir + activeClass);
+				} catch (e) { }
+				try { 
+					console.log("Uploading: " + filename);
+					var hash = crypto.createHash('md5');
+					fstream = fs.createWriteStream(dir + filename);
+					file.on('data', function(chunk) {
+						hash.update(chunk);
+					});
+					fstream.on('close', function () { 
 					
-					var files = getJSON(activeClass);
+						var tempfile = {};
+						tempfile["name"] = filename;
+						tempfile["title"] = title;
+						tempfile["hash"] = hash.digest('hex');
+						tempfile["date"] = Date.now();
+						if (revealDate) {
+							tempfile["reveal"] = revealDate;
+						} else {
+							tempfile["reveal"] = tempfile["date"];
+						}
+						
+						var files = getJSON(activeClass);
 
-					try {
-						console.log("Upload Finished of " + tempfile.name);
-						fs.rename(dir + tempfile.name, dir + activeClass + "/" + tempfile.hash, function (err) {
-							if (err) throw err;
-							console.log('Renamed to ' + tempfile.hash);
-							for (var folder in files[activeClass]) {
-								for (var i = 0; i < files[activeClass][folder].length; i++) {
-									if (files[activeClass][folder][i].hash == tempfile.hash) {
-										files[activeClass][folder].splice(i, 1);
-										break;
-									}
-								}
-								if (files[activeClass][folder].length == 0) { delete files[activeClass][folder]; }
+						try {
+							console.log("Upload Finished of " + tempfile.name);
+							createFolder(theFolder, activeClass);
+							var newName;
+							if (theFolder) {
+								newName = dir + activeClass + "/" + theFolder + "/" + tempfile.hash + ".file";
+							} else {
+								newName = dir + activeClass + "/" + tempfile.hash + ".file";
 							}
-							if (!files[activeClass][theFolder]) {
-								files[activeClass][theFolder] = [];
-							}
-							files[activeClass][theFolder].push(tempfile);
-							fs.writeFileSync(dir + activeClass + ".json", JSON.stringify(files[activeClass]));
-							io.emit('message', files);
-						});
-					} catch (e) {
-						console.log("Error during file save");
-					}
-				});
-				file.pipe(fstream);
-			} catch (e) {
-				console.log("Error during upload");
+							fs.rename(dir + tempfile.name, newName, function (err) {
+								if (err) throw err;
+								console.log('Renamed to ' + activeClass + "/" + theFolder + "/" + tempfile.hash);
+								addWithoutCollisions(files[activeClass], theFolder + "/" + tempfile.hash, tempfile);
+								fs.writeFileSync(dir + activeClass + ".json", JSON.stringify(files[activeClass]));
+								io.emit('message', files);
+							});
+						} catch (e) {
+							console.log(e);
+						}
+					});
+					file.pipe(fstream);
+				} catch (e) {
+					console.log("Error during upload");
+				}
+			} else {
+				file.resume();
 			}
         });
 		req.busboy.on('finish', function () {
-			res.send('File saved');
+			res.writeHead(200, { Connection: 'close', Location: '/' });
+			res.end();
 		});
     });
 

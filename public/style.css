@@ -1,12 +1,12 @@
 .example-animate-container {
-  background:white;
+  background:#F8F8F8;
   list-style:none;
   margin:0;
-  padding:0 10px;
+  padding:0;
 }
 
 li.animate-repeat {
-  line-height:40px;
+  line-height:50px;
   list-style:none;
   box-sizing:border-box;
 }
@@ -29,5 +29,31 @@ li.animate-repeat {
 .animate-repeat.ng-move.ng-move-active,
 .animate-repeat.ng-enter.ng-enter-active {
   opacity:1;
-  max-height:40px;
+  max-height:50px;
+}
+
+html, body {
+	padding: 0px;
+	margin: 0px;
+	height: 100%;
+	width: 100%;
+}
+
+select {
+	border: 1px solid #909090;
+	background: #F1F1F1;
+	width: 200px;
+	padding: 10px;
+	-webkit-appearance: none;
+	-moz-appearance: none;
+	appearance: none;
+} 
+
+.noselect {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
 }
