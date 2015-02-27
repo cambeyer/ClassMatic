@@ -20,7 +20,7 @@ var getJSON = function(filename) {
 		data[filename] = temp;
 	} catch (e) {}
 	return data;
-}
+};
 
 var createFolder = function(foldername, activeClass) {
 	var root = dir + activeClass;
@@ -34,7 +34,7 @@ var createFolder = function(foldername, activeClass) {
 		}
 	}
 	return root + "/";
-}
+};
 
 var addWithoutCollisions = function(files, foldername, file) {
 	var parts = foldername.split("/");
@@ -43,13 +43,15 @@ var addWithoutCollisions = function(files, foldername, file) {
 			if (files.folders[parts[0]]) {
 				if (parts.length == 2) {
 					if (files.folders[parts[0]].files) {
-						for (var i = 0; i < files.folders[parts[0]].files.length; i++) {
-							if (files.folders[parts[0]].files[i].hash == file.hash) {
-								files.folders[parts[0]].files.splice(i, 1);
-								break;
+						if (file) {
+							for (var i = 0; i < files.folders[parts[0]].files.length; i++) {
+								if (files.folders[parts[0]].files[i].hash == file.hash) {
+									files.folders[parts[0]].files.splice(i, 1);
+									break;
+								}
 							}
+							files.folders[parts[0]].files.push(file);
 						}
-						files.folders[parts[0]].files.push(file);
 						return;
 					} else {
 						files.folders[parts[0]].files = [];
@@ -67,20 +69,22 @@ var addWithoutCollisions = function(files, foldername, file) {
 			addWithoutCollisions(files, foldername, file);
 		}
 	} else {
-		if (files.files) {
-			for (var i = 0; i < files.files.length; i++) {
-				if (files.files[i].hash == file.hash) {
-					files.files.splice(i, 1);
-					break;
+		if (file) {
+			if (files.files) {
+				for (var i = 0; i < files.files.length; i++) {
+					if (files.files[i].hash == file.hash) {
+						files.files.splice(i, 1);
+						break;
+					}
 				}
+			} else {
+				files.files = [];
 			}
-		} else {
-			files.files = [];
+			files.files.push(file);
 		}
-		files.files.push(file);
 		return;
 	}
-}
+};
 
 var download = function(files, filename) {
 	filename = filename.split("/");
@@ -92,9 +96,36 @@ var download = function(files, filename) {
 				}
 			}
 		}
+	} else if (filename.length > 1) {
+		return download(files.folders[filename[0]], filename.slice(1).join("/"));
 	}
-	return download(files.folders[filename[0]], filename.slice(1).join("/"));
-}
+};
+
+var folderDeleter = function(files, path) {
+	path = path.split("/");
+	if (path.length == 1) {
+		if (files.folders && files.folders[path[0]]) {
+			delete files.folders[path[0]];
+			return;
+		}
+	} else if (path.length > 1) {
+		return folderDeleter(files.folders[path[0]], path.slice(1).join("/"));
+	}
+};
+
+var deleteFolderRecursive = function (path) {
+	if (fs.existsSync(path)) {
+		fs.readdirSync(path).forEach(function(file, index) {
+			var curPath = path + "/" + file;
+			if (fs.lstatSync(curPath).isDirectory()) {
+				deleteFolderRecursive(curPath);
+			} else {
+				fs.unlinkSync(curPath);
+			}
+		});
+		fs.rmdirSync(path);
+	}
+};
 
 var deleter = function(files, filename, activeClass, origfilename) {
 	filename = filename.split("/");
@@ -134,125 +165,159 @@ var deleter = function(files, filename, activeClass, origfilename) {
 		}
 	}
 	return true;
-}
+};
 
 app.get('/download', function(req, res){
 	try {
 		var hash = req.query.hash;
 		var activeClass = req.query.active;
-		var filename;
-		var files = JSON.parse(fs.readFileSync(dir + activeClass + ".json", 'utf8'));
-		filename = download(files, hash);
-		if (filename) {
-			console.log("Downloading: " + hash + " -> " + filename);
-			var file = dir + activeClass + "/" + hash + ".file";
-			res.setHeader('Content-disposition', 'attachment; filename=' + filename);
-			var filestream = fs.createReadStream(file);
-			filestream.pipe(res);
+		if (hash && activeClass) {
+			var filename;
+			var files = JSON.parse(fs.readFileSync(dir + activeClass + ".json", 'utf8'));
+			filename = download(files, hash);
+			if (filename) {
+				console.log("Downloading: " + hash + " -> " + filename);
+				var file = dir + activeClass + "/" + hash + ".file";
+				res.setHeader('Content-disposition', 'attachment; filename=' + filename);
+				var filestream = fs.createReadStream(file);
+				filestream.pipe(res);
+			}
 		}
-	} catch (e) { res.redirect('back'); }
+	} catch (e) { console.log(e); res.redirect('back'); }
 });
 
 app.get('/delete', function(req, res){
 	try {
 		var hash = req.query.hash;
 		var activeClass = req.query.active;
-		var files = getJSON(activeClass);
-		if (deleter(files[activeClass], hash, activeClass, "")) {
-			fs.writeFileSync(dir + activeClass + ".json", JSON.stringify(files[activeClass]));
-		} else {
-			try {
-				fs.unlinkSync(dir + activeClass + ".json");
-				fs.rmdirSync(dir + activeClass);
-			} catch (e) {
-				console.log("Could not remove index file " + activeClass);
+		if (hash && activeClass) {
+			var files = getJSON(activeClass);
+			if (deleter(files[activeClass], hash, activeClass, "")) {
+				fs.writeFileSync(dir + activeClass + ".json", JSON.stringify(files[activeClass]));
+			} else {
+				try {
+					fs.unlinkSync(dir + activeClass + ".json");
+					fs.rmdirSync(dir + activeClass);
+				} catch (e) {
+					console.log("Could not remove index file " + activeClass);
+				}
 			}
+			io.emit('message', files);
+			res.send('File deleted');
 		}
-		io.emit('message', files);
-		res.send('File deleted');
-	} catch (e) { res.send("Error deleting"); }
+	} catch (e) { console.log(e); res.send("Error deleting"); }
 });
 
-app.route('/upload')
-    .post(function (req, res, next) {
-        var fstream;
-		var title;
-		var revealDate;
-		var theFolder;
-        req.pipe(req.busboy);
-		req.busboy.on('field',function (fieldname, val){
-			if (fieldname == 'title') {
-				title = val;
-			} else if (fieldname == 'reveal') {
-				revealDate = val;
-			} else if (fieldname == 'folder') {
-				if (val.length > 1 && val.substring(0, 1) == '/') {
-					val = val.substring(1);
-				}
-				theFolder = val;
-				console.log("Folder: " + theFolder);
-			}
-		});
-        req.busboy.on('file', function (activeClass, file, filename) {
-			if (filename) {
-				try {
-					fs.mkdirSync(dir + activeClass);
-				} catch (e) { }
-				try { 
-					console.log("Uploading: " + filename);
-					var hash = crypto.createHash('md5');
-					fstream = fs.createWriteStream(dir + filename);
-					file.on('data', function(chunk) {
-						hash.update(chunk);
-					});
-					fstream.on('close', function () { 
-					
-						var tempfile = {};
-						tempfile["name"] = filename;
-						tempfile["title"] = title;
-						tempfile["hash"] = hash.digest('hex');
-						tempfile["date"] = Date.now();
-						if (revealDate) {
-							tempfile["reveal"] = revealDate;
-						} else {
-							tempfile["reveal"] = tempfile["date"];
-						}
-						
-						var files = getJSON(activeClass);
+app.get('/newfolder', function(req, res){
+	try {
+		var path = req.query.path;
+		var activeClass = req.query.active;
+		if (path && activeClass) {
+			var files = getJSON(activeClass);
+			createFolder(path, activeClass);
+			addWithoutCollisions(files[activeClass], path + "/new", null);
+			fs.writeFileSync(dir + activeClass + ".json", JSON.stringify(files[activeClass]));
+			io.emit('message', files);
+			res.send('Folder created');
+		}
+	} catch (e) { console.log(e); res.send("Error creating"); }
+});
 
-						try {
-							console.log("Upload Finished of " + tempfile.name);
-							createFolder(theFolder, activeClass);
-							var newName;
-							if (theFolder) {
-								newName = dir + activeClass + "/" + theFolder + "/" + tempfile.hash + ".file";
-							} else {
-								newName = dir + activeClass + "/" + tempfile.hash + ".file";
-							}
-							fs.rename(dir + tempfile.name, newName, function (err) {
-								if (err) throw err;
-								console.log('Renamed to ' + activeClass + "/" + theFolder + "/" + tempfile.hash);
-								addWithoutCollisions(files[activeClass], theFolder + "/" + tempfile.hash, tempfile);
-								fs.writeFileSync(dir + activeClass + ".json", JSON.stringify(files[activeClass]));
-								io.emit('message', files);
-							});
-						} catch (e) {
-							console.log(e);
-						}
-					});
-					file.pipe(fstream);
-				} catch (e) {
-					console.log("Error during upload");
-				}
-			} else {
-				file.resume();
+app.get('/deletefolder', function(req, res){
+	try {
+		var path = req.query.path;
+		var activeClass = req.query.active;
+		if (path && activeClass) {
+			var files = getJSON(activeClass);
+			folderDeleter(files[activeClass], path);
+			deleteFolderRecursive(dir + activeClass + "/" + path);
+			fs.writeFileSync(dir + activeClass + ".json", JSON.stringify(files[activeClass]));
+			io.emit('message', files);
+			res.send('Folder deleted');
+		}
+	} catch (e) { console.log(e); res.send("Error deleting"); }
+});
+
+app.route('/upload').post(function (req, res, next) {
+	var fstream;
+	//var title;
+	var revealDate;
+	var theFolder;
+	req.pipe(req.busboy);
+	req.busboy.on('field',function (fieldname, val){
+		/*if (fieldname == 'title') {
+			title = val;
+		} else if */
+		if (fieldname == 'reveal') {
+			revealDate = val;
+		} else if (fieldname == 'folder') {
+			if (val.length > 1 && val.substring(0, 1) == '/') {
+				val = val.substring(1);
 			}
-        });
-		req.busboy.on('finish', function () {
-			res.writeHead(200, { Connection: 'close', Location: '/' });
-			res.end();
-		});
-    });
+			theFolder = val;
+			console.log("Folder: " + theFolder);
+		}
+	});
+	req.busboy.on('file', function (activeClass, file, filename) {
+		if (filename) {
+			try {
+				fs.mkdirSync(dir + activeClass);
+			} catch (e) { }
+			try { 
+				console.log("Uploading: " + filename);
+				var hash = crypto.createHash('md5');
+				fstream = fs.createWriteStream(dir + filename);
+				file.on('data', function(chunk) {
+					hash.update(chunk);
+				});
+				fstream.on('close', function () { 
+				
+					var tempfile = {};
+					tempfile["name"] = filename;
+					//tempfile["title"] = title;
+					tempfile["hash"] = hash.digest('hex');
+					tempfile["date"] = Date.now();
+					if (revealDate) {
+						tempfile["reveal"] = revealDate;
+					} else {
+						tempfile["reveal"] = tempfile["date"];
+					}
+					
+					var files = getJSON(activeClass);
+
+					try {
+						console.log("Upload Finished of " + tempfile.name);
+						createFolder(theFolder, activeClass);
+						var newName;
+						if (theFolder) {
+							newName = dir + activeClass + "/" + theFolder + "/" + tempfile.hash + ".file";
+						} else {
+							newName = dir + activeClass + "/" + tempfile.hash + ".file";
+						}
+						fs.rename(dir + tempfile.name, newName, function (err) {
+							if (err) throw err;
+							console.log('Renamed to ' + activeClass + "/" + theFolder + "/" + tempfile.hash);
+							addWithoutCollisions(files[activeClass], theFolder + "/" + tempfile.hash, tempfile);
+							fs.writeFileSync(dir + activeClass + ".json", JSON.stringify(files[activeClass]));
+							io.emit('message', files);
+						});
+					} catch (e) {
+						console.log(e);
+					}
+				});
+				file.pipe(fstream);
+			} catch (e) {
+				console.log("Error during upload");
+			}
+		} else {
+			file.resume();
+		}
+	});
+	req.busboy.on('finish', function () {
+		res.writeHead(200, { Connection: 'close', Location: '/' });
+		res.end();
+	});
+});
 
 io.on('connection', function(socket){
   socket.on('message', function(msg) {

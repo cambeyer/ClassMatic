@@ -1,35 +1,36 @@
 .example-animate-container {
-  background:#F8F8F8;
-  list-style:none;
-  margin:0;
-  padding:0;
+  background: #F8F8F8;
+  list-style: none;
+  margin: 0;
+  padding: 10px;
+  padding-right: 0px;
 }
 
 li.animate-repeat {
-  line-height:50px;
-  list-style:none;
-  box-sizing:border-box;
+  line-height: 50px;
+  list-style: none;
+  box-sizing: border-box;
 }
 
 .animate-repeat.ng-move,
 .animate-repeat.ng-enter,
 .animate-repeat.ng-leave {
-  -webkit-transition:all linear 0.25s;
-  transition:all linear 0.25s;
+  -webkit-transition: all linear 0.25s;
+  transition: all linear 0.25s;
 }
 
 .animate-repeat.ng-leave.ng-leave-active,
 .animate-repeat.ng-move,
 .animate-repeat.ng-enter {
-  opacity:0;
-  max-height:0;
+  opacity: 0;
+  max-height: 0;
 }
 
 .animate-repeat.ng-leave,
 .animate-repeat.ng-move.ng-move-active,
 .animate-repeat.ng-enter.ng-enter-active {
-  opacity:1;
-  max-height:50px;
+  opacity: 1;
+  max-height: 50px;
 }
 
 html, body {
@@ -37,6 +38,36 @@ html, body {
 	margin: 0px;
 	height: 100%;
 	width: 100%;
+}
+
+a:link {
+    color: black;
+}
+
+a:visited {
+    color: black;
+}
+
+a:hover {
+    color: black;
+}
+
+a:active {
+    color: black;
+}
+
+a.button {
+	border: 1px solid black;
+	text-decoration : none;
+	border-radius: 5px;
+	padding: 10px;
+	background-color: white;
+}
+
+button {
+	height: 40px;
+	padding-left: 20px;
+	padding-right: 20px;
 }
 
 select {
