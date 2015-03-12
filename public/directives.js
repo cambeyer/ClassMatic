@@ -52,13 +52,28 @@ directive('dragAndDrop', function($rootScope) {
 				} 
 				if (go) {
 					$rootScope.$apply(function () {
-						$rootScope.fields.droppedFiles = e.originalEvent.dataTransfer.files; //no originalEvent if jQuery script is included after angular
+						$rootScope.fields.droppedFiles = [];
+						var dropped = e.originalEvent.dataTransfer.files; //no originalEvent if jQuery script is included after angular
+						var warned = false;
+						for (var i in dropped) {
+							if (dropped[i].type || (dropped[i].size && dropped[i].size % 4096 !== 0)) {
+								$rootScope.fields.droppedFiles.push(dropped[i]);
+							}
+						}
 						if ($rootScope.fields.droppedFiles.length > 0) {
-							$rootScope.fields.upload = true;
-							if ($scope.path && $scope.path !== "") {
-								$rootScope.fields.folderName = $scope.path.substring(0, $scope.path.length - 1);
+							//if we're not in the upload pane already then open it and overwrite the folder
+							if ($rootScope.fields.upload == false) {
+								$rootScope.fields.upload = true;
+								if ($scope.path && $scope.path !== "") {
+									$rootScope.fields.folderName = $scope.path.substring(0, $scope.path.length - 1);
+								} else {
+									$rootScope.fields.folderName = "/";
+								}
 							} else {
-								$rootScope.fields.folderName = "/";
+								//if the upload pane is already open and we drag-dropped onto no path, keep what was there... but if we dropped on a custom folder, take that instead
+								if ($scope.path && $scope.path !== "") {
+									$rootScope.fields.folderName = $scope.path.substring(0, $scope.path.length - 1);
+								}
 							}
 						}
 					});	
@@ -72,19 +87,21 @@ directive('uploadForm', function($rootScope) {
 		scope: false,
 		restrict: 'A',
 		template: '' + 
-			'<table style="padding: 20px; border: 1px solid #909090" cellpadding="10" cellspacing="0" border="0" align="center">' + 
+			'<table ng-style="{backgroundColor : (loading && \'#FF9999\') || \'transparent\'}" style="width: 330px; padding: 15px; border: 1px solid #909090" cellpadding="10" cellspacing="0" border="0" align="center">' + 
 				'<tr>' + 
-					'<td>Folder:</td>' + 
+					'<td valign="top">Folder:</td>' + 
 					'<td>' + 
 						'<span ng-bind="fields.folderName | humanreadable"></span>' + 
 						'<input type="text" ng-show="false" id="folder" ng-model="fields.folderName" name="folder">' + 
 					'</td>' + 
 				'</tr>' + 
 				'<tr>' + 
-					'<td>File(s):</td>' + 
+					'<td valign="top">File(s):</td>' + 
 					'<td>' + 
-						'<input style="width: 200px" id="file" ng-disabled="loading" type="file" name="{{activeClass}}" ng-show="!(fields.droppedFiles.length > 0)" ng-required="!(fields.droppedFiles.length > 0)" multiple="multiple">' + 
-						'<div style="width: 200px" ng-show="fields.droppedFiles.length"><span style="color: red"><b>{{fields.droppedFiles.length}} selected</b> <img style="float: right; max-height: 20px" ng-src="x.png" ng-click="fields.droppedFiles = []"></span></div>' + 
+					//ng-show="!(fields.droppedFiles.length > 0) || this.value !== \'\'"
+						'<input style="width: 100%" id="file" ng-disabled="loading" type="file" name="{{activeClass}}"  ng-required="!(fields.droppedFiles.length > 0)" multiple="multiple">' + 
+						'<p><span ng-if="fields.droppedFiles.length > 0" style="color: red"><b>+</b></span></p>' + 
+						'<div style="width: 100%" ng-show="fields.droppedFiles.length"><span style="color: red"><b>{{fields.droppedFiles.length}} file(s) drag/dropped</b> <img style="float: right; max-height: 20px" ng-src="x.png" ng-click="fields.droppedFiles = []"></span></div>' + 
 					'</td>' + 
 				'</tr>' + 
 				'<tr>' + 
@@ -96,7 +113,7 @@ directive('uploadForm', function($rootScope) {
 			'</table>',
 		link: function($scope, elem, attr) {
 			elem.bind('submit', function(e) {
-				$(elem).children('table').css('background-color', '#FF9999');
+				//$(elem).children('table').css('background-color', '#FF9999');
 				$scope.loading = true;
 				e.preventDefault();
 				oData = new FormData(this);
@@ -111,7 +128,7 @@ directive('uploadForm', function($rootScope) {
 				oReq.open("post", "upload", true);
 				oReq.onload = function(oEvent) {
 					if (oReq.status == 200) {
-						$(elem).children('table').css('background-color', 'transparent');
+						//$(elem).children('table').css('background-color', 'transparent');
 						$scope.loading = false;
 						try {
 							if ($rootScope.fields.droppedFiles.length == 0) {
@@ -135,16 +152,17 @@ directive('folder', function(RecursionHelper) {
 		scope: false,
 		restrict: 'E',
 		template: '' + 
-			'<ul class="example-animate-container">' + 
-				'<li class="animate-repeat" ng-repeat="file in object.files | orderBy: \'-date\' track by file.hash" ng-if="currentDate >= file.reveal">' + 
+			'<ul class="example-animate-container" ng-style="{borderLeft : ((object.files || object.folders) && path && \'1px solid #909090\') || \'\'}">' + 
+				'<li class="animate-repeat" ng-repeat="file in object.files | filter: {name: searchterm} | orderBy: \'-date\' track by file.hash" ng-if="currentDate >= file.reveal">' + 
 					'<a ng-href="download?active={{activeClass}}&hash={{path + file.hash}}" ng-bind="file.name"></a> (<a href="#" ng-click="preview = !preview">{{preview ? "close" : "preview"}}</a>, <a ng-href="delete?active={{activeClass}}&hash={{path + file.hash}}" target="hidden-iframe">delete</a>) - uploaded {{file.date | date:"M/dd/yy \'at\' h:mma"}}<br />' + 
 					'<viewer ng-if="preview" hash="{{path + file.hash}}" active="{{activeClass}}"></viewer>' + 
 				'</li>' + 
-				'<li ng-class="divClass" class="animate-repeat" style="padding-left: 30px" ng-repeat="(name, folder) in object.folders" ng-if="folder.files || folder.folders">' + 
+				//ng-if="folder.files || folder.folders"> will hide empty folders by default
+				'<li ng-class="divClass" class="animate-repeat" style="padding-left: 20px" ng-repeat="(name, folder) in object.folders | folderfilter:searchterm"' + 
 					'<div class="noselect">' + 
 						'<p></p>' + 
-						'<div drag-and-drop style="background-color: #F1F1F1; padding: 5px; border: solid 1px #909090" ng-click="foldershow = !foldershow"><img src="folder.png" style="max-height: 35px; padding-top: 5px; padding-right: 5px; padding-left: 10px"> <span style="vertical-align: top">{{name}}</span><span style="float: right"><button-group style="position: relative; bottom: 10px; right: 10px"></button-group><img ng-src="{{foldershow ? \'expand.png\' : \'collapse.png\'}}" style="padding-top: 5px; max-height: 35px"></span></div></div>' + 
-						'<folder ng-show="!foldershow" data="folder" path="name"></folder>' + 
+						'<div drag-and-drop ng-style="{minWidth : (280 + (14 * path.split(\'/\')[path.split(\'/\').length - 2].length)) + \'px\'}" style="background-color: #F1F1F1; border: solid 1px #909090" ng-click="foldershow = !foldershow"><img src="folder.png" style="max-height: 40px; padding-top: 5px; padding-right: 5px; padding-left: 10px"> <span style="vertical-align: top; position: relative; top: 7px; left: 5px">{{name}}</span><span style="float: right"><button-group style="position: relative; bottom: 3px; right: 10px"></button-group><img ng-src="{{foldershow || searchterm ? \'expand.png\' : \'collapse.png\'}}" style="padding-top: 5px; max-height: 35px"></span></div></div>' + 
+						'<folder ng-show="!foldershow || searchterm" data="folder" path="name"></folder>' + 
 					'</div>' + 
 				'</li>' + 
 			'</ul>',
@@ -170,7 +188,7 @@ directive('folder', function(RecursionHelper) {
 		scope: false,
 		restrict: 'E',
 		template: '' + 
-			'<a class="button" href="" ng-click="uploadFolder($event)">Upload</a> <a class="button" target="hidden-iframe" ng-href="newfolder?active={{activeClass}}&path={{path + newname}}" ng-click="newFolder($event)">New Folder</a> <a ng-if="path" class="button" target="hidden-iframe" ng-href="deletefolder?active={{activeClass}}&path={{deletepath}}" ng-click="deleteFolder($event)">Delete</a>',
+			'<a class="button" href="" ng-click="uploadFolder($event)">Upload</a> <a class="button" target="hidden-iframe" ng-href="newfolder?active={{activeClass}}&path={{path + newname}}" ng-click="newFolder($event)"><img style="max-height: 30px; position: relative; top: 9px" src="newfolder.png"></a> <a ng-if="path" class="button" target="hidden-iframe" ng-href="deletefolder?active={{activeClass}}&path={{deletepath}}" ng-click="deleteFolder($event)"><img style="max-height: 30px; position: relative; top: 9px" src="delete.png"></a>',
 		controller: function ($scope, $rootScope) {
 			$scope.uploadFolder = function (e) {
 				e.stopPropagation();
@@ -185,15 +203,16 @@ directive('folder', function(RecursionHelper) {
 				e.stopPropagation();
 				$scope.newname = prompt("Please enter a name for your new folder: ");
 				if ($scope.newname) {
-				$rootScope.fields.upload = true;
-				$rootScope.fields.folderName = $scope.path + $scope.newname;
+					$scope.newname = $scope.newname.replace(/([^a-z 0-9]+)/gi, '');
+					$rootScope.fields.upload = true;
+					$rootScope.fields.folderName = $scope.path + $scope.newname;
 				} else {
 					e.preventDefault();
 				}
 			}
 			$scope.deleteFolder = function (e) {
 				e.stopPropagation();
-				if (!confirm("Are you sure?")) {
+				if (!confirm("This will delete the folder and all of its contents, and cannot be undone.  Are you sure?")) {
 					e.preventDefault();
 				} else {
 					if ($scope.path && $scope.path !== "") {

@@ -6,21 +6,45 @@ var fs = require('fs-extra');
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
 var crypto = require('crypto');
+var lockFile = require('lockfile');
 
 var dir = __dirname + '/files/';
+
+var globalfiles;
 
 app.use(busboy());
 app.use(express.static(path.join(__dirname, 'public')));
 
-var getJSON = function(filename) {
+var checkClassDefined = function(activeClass) {
+	if (!globalfiles[activeClass]) {
+		globalfiles[activeClass] = {};
+	}
+	return globalfiles[activeClass];
+}
+
+var justOneClass = function(activeClass) {
 	var data = {};
-	data[filename] = {};
-	try {
-		var temp = JSON.parse(fs.readFileSync(dir + filename + ".json", 'utf8'));
-		data[filename] = temp;
-	} catch (e) {}
+	data[activeClass] = checkClassDefined(activeClass);
 	return data;
-};
+}
+
+var writeIndexFile = function() {
+	for (var oneclass in globalfiles) {
+		if (Object.keys(globalfiles[oneclass]).length == 0) {
+			delete globalfiles[oneclass];
+		}
+	}
+	if (Object.keys(globalfiles).length > 0) {
+		fs.writeFileSync(dir + "files.json", JSON.stringify(globalfiles));
+	} else {
+		try {
+			fs.unlinkSync(dir + "files.json");
+		} catch (e) {
+			console.log(e);
+			console.log("writeIndexFile: error removing index file");
+		}
+	}
+}
 
 var createFolder = function(foldername, activeClass) {
 	var root = dir + activeClass;
@@ -43,18 +67,20 @@ var addWithoutCollisions = function(files, foldername, file) {
 			if (files.folders[parts[0]]) {
 				if (parts.length == 2) {
 					if (files.folders[parts[0]].files) {
-						if (file) {
-							for (var i = 0; i < files.folders[parts[0]].files.length; i++) {
-								if (files.folders[parts[0]].files[i].hash == file.hash) {
-									files.folders[parts[0]].files.splice(i, 1);
-									break;
-								}
+						for (var i = 0; i < files.folders[parts[0]].files.length; i++) {
+							if (files.folders[parts[0]].files[i].hash == file.hash) {
+								files.folders[parts[0]].files.splice(i, 1);
+								break;
 							}
-							files.folders[parts[0]].files.push(file);
 						}
+						files.folders[parts[0]].files.push(file);
 						return;
 					} else {
-						files.folders[parts[0]].files = [];
+						if (file) {
+							files.folders[parts[0]].files = [];
+						} else {
+							return;
+						}
 						addWithoutCollisions(files, foldername, file);
 					}
 				} else {
@@ -106,6 +132,9 @@ var folderDeleter = function(files, path) {
 	if (path.length == 1) {
 		if (files.folders && files.folders[path[0]]) {
 			delete files.folders[path[0]];
+			if (Object.keys(files.folders).length == 0) {
+				delete files.folders;
+			}
 			return;
 		}
 	} else if (path.length > 1) {
@@ -138,6 +167,7 @@ var deleter = function(files, filename, activeClass, origfilename) {
 					fs.unlinkSync(dir + activeClass + "/" + origfilename + filename[0] + ".file");
 				} catch (e) {
 					console.log(e);
+					console.log("Deleter: error removing file");
 				}
 				if (files.files.length == 0) {
 					delete files.files;
@@ -172,9 +202,7 @@ app.get('/download', function(req, res){
 		var hash = req.query.hash;
 		var activeClass = req.query.active;
 		if (hash && activeClass) {
-			var filename;
-			var files = JSON.parse(fs.readFileSync(dir + activeClass + ".json", 'utf8'));
-			filename = download(files, hash);
+			var filename = download(checkClassDefined(activeClass), hash);
 			if (filename) {
 				console.log("Downloading: " + hash + " -> " + filename);
 				var file = dir + activeClass + "/" + hash + ".file";
@@ -191,18 +219,16 @@ app.get('/delete', function(req, res){
 		var hash = req.query.hash;
 		var activeClass = req.query.active;
 		if (hash && activeClass) {
-			var files = getJSON(activeClass);
-			if (deleter(files[activeClass], hash, activeClass, "")) {
-				fs.writeFileSync(dir + activeClass + ".json", JSON.stringify(files[activeClass]));
-			} else {
+			if (!deleter(checkClassDefined(activeClass), hash, activeClass, "")) {
 				try {
-					fs.unlinkSync(dir + activeClass + ".json");
+					delete globalfiles[activeClass];
 					fs.rmdirSync(dir + activeClass);
 				} catch (e) {
-					console.log("Could not remove index file " + activeClass);
+					console.log("Could not remove folder " + activeClass);
 				}
 			}
-			io.emit('message', files);
+			writeIndexFile();
+			io.emit('message', justOneClass(activeClass));
 			res.send('File deleted');
 		}
 	} catch (e) { console.log(e); res.send("Error deleting"); }
@@ -213,11 +239,10 @@ app.get('/newfolder', function(req, res){
 		var path = req.query.path;
 		var activeClass = req.query.active;
 		if (path && activeClass) {
-			var files = getJSON(activeClass);
 			createFolder(path, activeClass);
-			addWithoutCollisions(files[activeClass], path + "/new", null);
-			fs.writeFileSync(dir + activeClass + ".json", JSON.stringify(files[activeClass]));
-			io.emit('message', files);
+			addWithoutCollisions(checkClassDefined(activeClass), path + "/new", null);
+			writeIndexFile();
+			io.emit('message', justOneClass(activeClass));
 			res.send('Folder created');
 		}
 	} catch (e) { console.log(e); res.send("Error creating"); }
@@ -228,11 +253,10 @@ app.get('/deletefolder', function(req, res){
 		var path = req.query.path;
 		var activeClass = req.query.active;
 		if (path && activeClass) {
-			var files = getJSON(activeClass);
-			folderDeleter(files[activeClass], path);
+			folderDeleter(checkClassDefined(activeClass), path);
 			deleteFolderRecursive(dir + activeClass + "/" + path);
-			fs.writeFileSync(dir + activeClass + ".json", JSON.stringify(files[activeClass]));
-			io.emit('message', files);
+			writeIndexFile();
+			io.emit('message', justOneClass(activeClass));
 			res.send('Folder deleted');
 		}
 	} catch (e) { console.log(e); res.send("Error deleting"); }
@@ -251,6 +275,7 @@ app.route('/upload').post(function (req, res, next) {
 		if (fieldname == 'reveal') {
 			revealDate = val;
 		} else if (fieldname == 'folder') {
+			val = val.replace(/([^a-z \/0-9]+)/gi, '');
 			if (val.length > 1 && val.substring(0, 1) == '/') {
 				val = val.substring(1);
 			}
@@ -283,8 +308,6 @@ app.route('/upload').post(function (req, res, next) {
 						tempfile["reveal"] = tempfile["date"];
 					}
 					
-					var files = getJSON(activeClass);
-
 					try {
 						console.log("Upload Finished of " + tempfile.name);
 						createFolder(theFolder, activeClass);
@@ -297,9 +320,9 @@ app.route('/upload').post(function (req, res, next) {
 						fs.rename(dir + tempfile.name, newName, function (err) {
 							if (err) throw err;
 							console.log('Renamed to ' + activeClass + "/" + theFolder + "/" + tempfile.hash);
-							addWithoutCollisions(files[activeClass], theFolder + "/" + tempfile.hash, tempfile);
-							fs.writeFileSync(dir + activeClass + ".json", JSON.stringify(files[activeClass]));
-							io.emit('message', files);
+							addWithoutCollisions(checkClassDefined(activeClass), theFolder + "/" + tempfile.hash, tempfile);
+							writeIndexFile();
+							io.emit('message', justOneClass(activeClass));
 						});
 					} catch (e) {
 						console.log(e);
@@ -322,10 +345,15 @@ app.route('/upload').post(function (req, res, next) {
 io.on('connection', function(socket){
   socket.on('message', function(msg) {
 	console.log('Received ' + msg);
-	socket.emit('message', getJSON(msg));
+	socket.emit('message', justOneClass(msg));
   });
 });
 
 http.listen(3000, "0.0.0.0", function(){
   console.log('listening on *:3000');
+  try {
+	globalfiles = JSON.parse(fs.readFileSync(dir + "files.json", 'utf8'));
+  } catch (e) {
+	globalfiles = {};
+  }
 });

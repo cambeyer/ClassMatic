@@ -3,7 +3,7 @@
 	<head>
 	<title>ClassMatic</title>
 	<link rel="stylesheet" type="text/css" href="style.css">
-	<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Roboto">
+	<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Lato">
 	<script src="http://code.jquery.com/jquery-2.1.3.min.js"></script>
 	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.0/angular.min.js"></script>
 	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.0/angular-animate.js"></script>
@@ -12,7 +12,7 @@
 	<script src="directives.js"></script>
 	<script src="services.js"></script>
 	<style type="text/css">
-		body { font-family: 'Roboto', serif; }
+		body { font-family: 'Lato', serif; }
 	</style>
 </head>
 <body ng-app="ClassMaticApp" style="background-color: #F8F8F8">
@@ -21,15 +21,15 @@
 		<a href="http://www.ltu.edu"><img ng-src="ltu.png" style="max-height: 50px; position: fixed; top: 10px; left: 15px; z-index: 99999"></a>
 		<img ng-src="{{!fields.upload ? 'expand.png' : 'collapse.png'}}" style="max-height: 35px; position: fixed; right: 10px; top: 15px; z-index: 99999" ng-click="fields.upload = !fields.upload">
 		<div class="noselect" style="position: fixed; width: 100%; height: 64px; text-align: center; background-color: #66C166; border-bottom: solid 1px #909090; z-index: 9999" ng-click="fields.upload = !fields.upload"><h2 style="padding-top: 15px; margin-top: 0px; color: white">{{loading ? 'Uploading...' : 'ClassMatic'}}</h2></div>
-		<div style="position: fixed; width: 100%; height: 240px; text-align: center; top: 65px; border-bottom: 1px solid #909090; background-color: #C1E6C1; z-index: 9999" ng-show="fields.upload">
-			<div style="text-align: left; padding-top: 20px">
+		<div style="position: fixed; width: 350px; height: 100%; text-align: center; top: 65px; left: 0px; border-right: 1px solid #909090; background-color: #C1E6C1; z-index: 9999" ng-show="fields.upload">
+			<div style="text-align: center; padding-top: 20px">
 				<form upload-form></form>
 			</div>
 		</div>
-		<div style="text-align: center; padding-top: {{fields.upload ? 305 : 65}}px">
-			<div style="display: inline-block; text-align: left; width: 100%; max-width: 800px; padding: 20px">
+		<div ng-style="{paddingLeft : (fields.upload && '351px') || '0px'}" style="text-align: center; padding-top: 65px">
+			<div style="display: inline-block; text-align: left; width: 90%; max-width: 800px; padding: 20px">
 				<div style="padding-top: 40px; padding-bottom: 40px">
-					<span style="padding-right: 10px">Class: </span><select ng-options="class for class in classes" ng-change="requestFiles()" ng-init="requestFiles()" ng-model="activeClass"></select> <span style="padding-left: 50px"><button-group></button-group></span>
+					<span style="padding-right: 10px">Class: </span><select ng-options="class for class in classes" ng-change="requestFiles()" ng-init="requestFiles()" ng-model="activeClass"></select> <span style="padding-left: 50px"><button-group></button-group></span><span style="float: right"><span style="padding-right: 10px">Search: </span><input type="text" style="padding-left: 5px; height: 35px" ng-model="searchterm"></span>
 				</div>
 				<folder data='files[activeClass]'></folder>
 			</div>
