@@ -8,6 +8,8 @@ angular.module('ClassMaticApp.controllers', []).controller('mainController', fun
 		folderName: "/",
 	}
 	
+	$scope.student = false;
+	
 	$scope.files = {};
 	
 	$scope.currentDate = Date.now();

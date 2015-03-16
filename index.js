@@ -46,6 +46,58 @@ var writeIndexFile = function() {
 	}
 }
 
+var getFileOrFolder = function(files, path, isFolder, doCopy) {
+	if (!path) {
+		if (doCopy) {
+			var copied = JSON.parse(JSON.stringify(files));
+			files = {};
+			return copied;
+		}
+		return files;
+	}
+	var parts = path.split("/");
+	if (parts.length == 1) {
+		if (!isFolder && files.files) {
+			for (var i = 0; i < files.files.length; i++) {
+				if (files.files[i].hash == parts[0]) {
+					if (doCopy) {
+						var copied = JSON.parse(JSON.stringify(files.files[i]));
+						files.files.splice(i, 1);
+						if (files.files.length == 0) {
+							delete files.files;
+						}
+						return copied;
+					}
+					return files.files[i];
+				}
+			}
+		} else if (isFolder && files.folders) {
+			if (files.folders[parts[0]]) {
+				if (doCopy) {
+					var copied = JSON.parse(JSON.stringify(files.folders));
+					delete files.folders[parts[0]];
+					if (Object.keys(files.folders).length == 0) {
+						delete files.folders;
+					}
+					return copied;
+				}
+				return files.folders;
+			}
+		} else {
+			return files;
+		}
+	} else {
+		if (files.folders) {
+			if (files.folders[parts[0]]) {
+				return getFileOrFolder(files.folders[parts[0]], parts.slice(1).join("/"), isFolder, doCopy);
+			}
+		} else {
+			//malformed path was provided
+			return {};
+		}
+	}
+}
+
 var createFolder = function(foldername, activeClass) {
 	var root = dir + activeClass;
 	if (foldername) {
@@ -66,7 +118,7 @@ var addWithoutCollisions = function(files, foldername, file) {
 		if (files.folders) {
 			if (files.folders[parts[0]]) {
 				if (parts.length == 2) {
-					if (files.folders[parts[0]].files) {
+					if (file && files.folders[parts[0]].files) {
 						for (var i = 0; i < files.folders[parts[0]].files.length; i++) {
 							if (files.folders[parts[0]].files[i].hash == file.hash) {
 								files.folders[parts[0]].files.splice(i, 1);
@@ -124,6 +176,48 @@ var download = function(files, filename) {
 		}
 	} else if (filename.length > 1) {
 		return download(files.folders[filename[0]], filename.slice(1).join("/"));
+	}
+};
+
+var mergeFolders = function(activeClass, goodPath, oldPath, goodCopy, newOne) {
+	var name = goodPath.split("/")[goodPath.split("/").length - 1];
+	try {
+		fs.mkdirSync(dir + activeClass + "/" + goodPath);
+	} catch (e) { }
+	if (goodCopy[name]) {
+		if (newOne.files) {
+			for (var i = 0; i < newOne.files.length; i++) {
+				if (!goodCopy[name].files) {
+					goodCopy[name].files = [];
+				}
+				for (var j = 0; j < goodCopy[name].files.length; j++) {
+					if (newOne.files[i].hash == goodCopy[name].files[j].hash) {
+						fs.unlinkSync(dir + activeClass + "/" + goodPath + "/" + goodCopy[name].files[j].hash + ".file");
+						goodCopy[name].files.splice(j, 1);
+						break;
+					}
+				}
+				fs.renameSync(dir + activeClass + "/" + oldPath + "/" + newOne.files[i].hash + ".file", dir + activeClass + "/" + goodPath + "/" + newOne.files[i].hash + ".file");
+				goodCopy[name].files.push(newOne.files[i]);
+			}
+		}
+		for (var foldername in newOne.folders) {
+			if (!goodCopy[name].folders) {
+				goodCopy[name].folders = {};
+			}
+			mergeFolders(activeClass, goodPath + "/" + foldername, oldPath + "/" + foldername, goodCopy[name].folders, newOne.folders[foldername]);
+			continue;
+		}
+	} else {
+		goodCopy[name] = newOne;
+	}
+	if (fs.readdirSync(dir + activeClass + "/" + oldPath).length == 0) {
+		console.log("Removing empty directory " + oldPath);
+		try {
+		fs.rmdirSync(dir + activeClass + "/" + oldPath);
+		} catch (e) {
+			console.log("Error removing directory " + oldPath);
+		}	
 	}
 };
 
@@ -234,6 +328,33 @@ app.get('/delete', function(req, res){
 	} catch (e) { console.log(e); res.send("Error deleting"); }
 });
 
+app.get('/move', function(req, res) {
+	try {
+		var source = req.query.source;
+		var destination = req.query.destination;
+		var activeClass = req.query.active;
+		if (source && destination && activeClass) {
+			if (source[source.length - 1] == '/') { //folder
+				source = source.substring(0, source.length - 1);
+				destination = destination.substring(0, destination.length - 1);
+				var sourcefolder = source.split("/")[source.split("/").length - 1];
+				var obj = getFileOrFolder(checkClassDefined(activeClass), source, true, true)[sourcefolder];
+				addWithoutCollisions(checkClassDefined(activeClass), destination + "/new", null);
+				mergeFolders(activeClass, destination, source, getFileOrFolder(checkClassDefined(activeClass), destination, true, false), obj);
+				console.log("Folder " + source + " physically moved to " + destination);
+			} else { //file
+				fs.renameSync(dir + activeClass + "/" + source + ".file", dir + activeClass + "/" + destination + ".file");
+				console.log("File " + source + " physically moved to " + destination);
+				var obj = getFileOrFolder(checkClassDefined(activeClass), source, false, true);
+				addWithoutCollisions(checkClassDefined(activeClass), destination, obj);
+			}
+			writeIndexFile();
+			io.emit('message', justOneClass(activeClass));
+			res.send('Moved');
+		}
+	} catch (e) { console.log(e); res.send("Error moving"); }
+});
+
 app.get('/newfolder', function(req, res){
 	try {
 		var path = req.query.path;
@@ -267,6 +388,7 @@ app.route('/upload').post(function (req, res, next) {
 	//var title;
 	var revealDate;
 	var theFolder;
+	var alreadyUploaded = [];
 	req.pipe(req.busboy);
 	req.busboy.on('field',function (fieldname, val){
 		/*if (fieldname == 'title') {
@@ -284,7 +406,14 @@ app.route('/upload').post(function (req, res, next) {
 		}
 	});
 	req.busboy.on('file', function (activeClass, file, filename) {
+		for (var i = 0; i < alreadyUploaded.length; i++) {
+			if (alreadyUploaded[i] == filename) {
+				filename = undefined;
+				break;
+			}
+		}
 		if (filename) {
+			alreadyUploaded.push(filename);
 			try {
 				fs.mkdirSync(dir + activeClass);
 			} catch (e) { }
@@ -307,7 +436,6 @@ app.route('/upload').post(function (req, res, next) {
 					} else {
 						tempfile["reveal"] = tempfile["date"];
 					}
-					
 					try {
 						console.log("Upload Finished of " + tempfile.name);
 						createFolder(theFolder, activeClass);

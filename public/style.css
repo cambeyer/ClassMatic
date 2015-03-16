@@ -12,6 +12,7 @@ li.animate-repeat {
   line-height: 40px;
   list-style: none;
   box-sizing: border-box;
+  clear: both;
 }
 
 .animate-repeat.ng-move,

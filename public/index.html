@@ -23,13 +23,14 @@
 		<div class="noselect" style="position: fixed; width: 100%; height: 64px; text-align: center; background-color: #66C166; border-bottom: solid 1px #909090; z-index: 9999" ng-click="fields.upload = !fields.upload"><h2 style="padding-top: 15px; margin-top: 0px; color: white">{{loading ? 'Uploading...' : 'ClassMatic'}}</h2></div>
 		<div style="position: fixed; width: 350px; height: 100%; text-align: center; top: 65px; left: 0px; border-right: 1px solid #909090; background-color: #C1E6C1; z-index: 9999" ng-show="fields.upload">
 			<div style="text-align: center; padding-top: 20px">
-				<form upload-form></form>
+				Student Mode: <input type="checkbox" ng-model="student" ng-true-value="true" ng-false-value="false"><p></p>
+				<form ng-if="!student" upload-form></form>
 			</div>
 		</div>
 		<div ng-style="{paddingLeft : (fields.upload && '351px') || '0px'}" style="text-align: center; padding-top: 65px">
 			<div style="display: inline-block; text-align: left; width: 90%; max-width: 800px; padding: 20px">
-				<div style="padding-top: 40px; padding-bottom: 40px">
-					<span style="padding-right: 10px">Class: </span><select ng-options="class for class in classes" ng-change="requestFiles()" ng-init="requestFiles()" ng-model="activeClass"></select> <span style="padding-left: 50px"><button-group></button-group></span><span style="float: right"><span style="padding-right: 10px">Search: </span><input type="text" style="padding-left: 5px; height: 35px" ng-model="searchterm"></span>
+				<div style="padding-top: 30px; height: 60px; position: relative">
+					<span style="position: absolute; top: 40px">Class: </span><select style="position: absolute; left: 60px" ng-options="class for class in classes" ng-change="requestFiles()" ng-init="requestFiles()" ng-model="activeClass"></select> <span style="padding-left: 50px"><button-group style="position: relative; top: -4px; left: 240px"></button-group></span><span style="float: right"><input type="search" style="height: 39px" placeholder="Search" ng-model="searchterm"></span>
 				</div>
 				<folder data='files[activeClass]'></folder>
 			</div>
