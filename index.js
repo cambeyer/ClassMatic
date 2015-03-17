@@ -103,12 +103,17 @@ var createFolder = function(foldername, activeClass) {
 	if (foldername) {
 		var parts = foldername.split("/");
 		for (var i = 0; i < parts.length; i++) {
-			root += "/" + parts[i];
-			try {
-				fs.mkdirSync(root);
-			} catch (e) { }
+			if (parts[i]) {
+				root += "/" + parts[i];
+				try {
+					fs.mkdirSync(root);
+				} catch (e) { }
+			}
 		}
 	}
+	try {
+		fs.mkdirSync(root);
+	} catch (e) { }
 	return root + "/";
 };
 
@@ -385,16 +390,15 @@ app.get('/deletefolder', function(req, res){
 
 app.route('/upload').post(function (req, res, next) {
 	var fstream;
-	//var title;
+	var title;
 	var revealDate;
 	var theFolder;
 	var alreadyUploaded = [];
 	req.pipe(req.busboy);
 	req.busboy.on('field',function (fieldname, val){
-		/*if (fieldname == 'title') {
+		if (fieldname == 'title') {
 			title = val;
-		} else if */
-		if (fieldname == 'reveal') {
+		} else if (fieldname == 'reveal') {
 			revealDate = val;
 		} else if (fieldname == 'folder') {
 			val = val.replace(/([^a-z \/0-9]+)/gi, '');
@@ -403,6 +407,9 @@ app.route('/upload').post(function (req, res, next) {
 			}
 			theFolder = val;
 			console.log("Folder: " + theFolder);
+			if (theFolder.substring(0, 1) == '/') {
+				theFolder = "";
+			}
 		}
 	});
 	req.busboy.on('file', function (activeClass, file, filename) {
@@ -428,7 +435,9 @@ app.route('/upload').post(function (req, res, next) {
 				
 					var tempfile = {};
 					tempfile["name"] = filename;
-					//tempfile["title"] = title;
+					if (title) {
+						tempfile["title"] = title;
+					}
 					tempfile["hash"] = hash.digest('hex');
 					tempfile["date"] = Date.now();
 					if (revealDate) {
@@ -447,7 +456,11 @@ app.route('/upload').post(function (req, res, next) {
 						}
 						fs.rename(dir + tempfile.name, newName, function (err) {
 							if (err) throw err;
-							console.log('Renamed to ' + activeClass + "/" + theFolder + "/" + tempfile.hash);
+							if (theFolder) {
+								console.log('Renamed to ' + activeClass + "/" + theFolder + "/" + tempfile.hash);
+							} else {
+								console.log('Renamed to ' + activeClass + "/" + tempfile.hash);
+							}
 							addWithoutCollisions(checkClassDefined(activeClass), theFolder + "/" + tempfile.hash, tempfile);
 							writeIndexFile();
 							io.emit('message', justOneClass(activeClass));

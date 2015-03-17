@@ -4,6 +4,7 @@ angular.module('ClassMaticApp.controllers', []).controller('mainController', fun
 	
 	$rootScope.fields = {
 		upload: false,
+		loading: false,
 		droppedFiles: [],
 		folderName: "/",
 	}
@@ -32,9 +33,6 @@ angular.module('ClassMaticApp.controllers', []).controller('mainController', fun
 			for (var className in msg) {
 				if ($scope.files[className] || $scope.activeClass == className) {
 					$scope.files[className] = msg[className];
-					if (!$scope.files[$scope.activeClass] || !$scope.files[$scope.activeClass].folders) {
-						$rootScope.fields.custom = "yes";
-					}
 				}
 			}
 		});	
