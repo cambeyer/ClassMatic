@@ -184,32 +184,32 @@ var mergeFolders = function(activeClass, goodPath, oldPath, goodCopy, newOne) {
 	try {
 		fs.mkdirSync(dir + activeClass + "/" + goodPath);
 	} catch (e) { }
-	if (goodCopy[name]) {
-		if (newOne.files) {
-			for (var i = 0; i < newOne.files.length; i++) {
-				if (!goodCopy[name].files) {
-					goodCopy[name].files = [];
-				}
-				for (var j = 0; j < goodCopy[name].files.length; j++) {
-					if (newOne.files[i].hash == goodCopy[name].files[j].hash) {
-						fs.unlinkSync(dir + activeClass + "/" + goodPath + "/" + goodCopy[name].files[j].hash + ".file");
-						goodCopy[name].files.splice(j, 1);
-						break;
-					}
-				}
-				fs.renameSync(dir + activeClass + "/" + oldPath + "/" + newOne.files[i].hash + ".file", dir + activeClass + "/" + goodPath + "/" + newOne.files[i].hash + ".file");
-				goodCopy[name].files.push(newOne.files[i]);
+	if (!goodCopy[name]) {
+		goodCopy[name] = {};
+	}
+	if (newOne.files) {
+		for (var i = 0; i < newOne.files.length; i++) {
+			if (!goodCopy[name].files) {
+				goodCopy[name].files = [];
 			}
-		}
-		for (var foldername in newOne.folders) {
-			if (!goodCopy[name].folders) {
-				goodCopy[name].folders = {};
+			for (var j = 0; j < goodCopy[name].files.length; j++) {
+				if (newOne.files[i].hash == goodCopy[name].files[j].hash) {
+					fs.unlinkSync(dir + activeClass + "/" + goodPath + "/" + goodCopy[name].files[j].hash + ".file");
+					goodCopy[name].files.splice(j, 1);
+					break;
+				}
 			}
-			mergeFolders(activeClass, goodPath + "/" + foldername, oldPath + "/" + foldername, goodCopy[name].folders, newOne.folders[foldername]);
-			continue;
+			console.log("Renaming " + oldPath + "/" + newOne.files[i].hash + ".file" + " to " + goodPath + "/" + newOne.files[i].hash + ".file");
+			fs.renameSync(dir + activeClass + "/" + oldPath + "/" + newOne.files[i].hash + ".file", dir + activeClass + "/" + goodPath + "/" + newOne.files[i].hash + ".file");
+			goodCopy[name].files.push(newOne.files[i]);
 		}
-	} else {
-		goodCopy[name] = newOne;
+	}
+	for (var foldername in newOne.folders) {
+		if (!goodCopy[name].folders) {
+			goodCopy[name].folders = {};
+		}
+		mergeFolders(activeClass, goodPath + "/" + foldername, oldPath + "/" + foldername, goodCopy[name].folders, newOne.folders[foldername]);
+		continue;
 	}
 	if (fs.readdirSync(dir + activeClass + "/" + oldPath).length == 0) {
 		console.log("Removing empty directory " + oldPath);

@@ -60,8 +60,10 @@ directive('dragAndDrop', function($rootScope) {
 				if (destination.substring(0, source.length) !== source) {
 					var link = document.createElement('a');
 					link.href = "move?active=" + angular.element($(elem)).scope().activeClass + "&source=" + source + "&destination=" + destination;
+					document.body.appendChild(link); //must be in DOM to work in Firefox
 					link.target = "hidden-iframe";
 					link.click();
+					document.body.removeChild(link);
 				}
 			}
 			
@@ -73,8 +75,8 @@ directive('dragAndDrop', function($rootScope) {
 				}
 				if (!$scope.student) {
 					var go = true;
-					if (e.originalEvent.dataTransfer.getData("mypath") && e.originalEvent.dataTransfer.getData("mypath") !== undefined) {
-						moveFile(elem, e.originalEvent.dataTransfer.getData("mypath"));
+					if (e.originalEvent.dataTransfer.getData("text") && e.originalEvent.dataTransfer.getData("text") !== undefined) {
+						moveFile(elem, e.originalEvent.dataTransfer.getData("text"));
 						return;
 					}
 					if ($rootScope.fields.droppedFiles.length > 0) {
@@ -184,15 +186,15 @@ directive('folder', function(RecursionHelper) {
 		restrict: 'E',
 		template: '' + 
 			'<ul drag-and-drop class="example-animate-container" ng-style="{borderLeft : ((object.files || object.folders) && path && \'1px solid #909090\') || \'\'}">' + 
-				'<li draggable="true" ondragstart="(function(event){ event.dataTransfer.setData(\'mypath\', angular.element($(event.target)).scope().path + angular.element($(event.target)).scope().file.hash); })(event);" class="animate-repeat" style="position: relative; border-bottom: 1px solid #909090; text-align: right" ng-repeat="file in object.files | filter: {name: searchterm} | orderBy: \'-date\' track by file.hash" ng-if="currentDate >= file.reveal">' + 
-					'<a draggable="false" style="float: left" ng-href="download?active={{activeClass}}&hash={{path + file.hash}}" ng-bind="file.name"></a><div style="display: inline-block; padding-left: 20px"><div style="display: inline-block; padding-right: 20px"><a draggable="false" href="#" ng-click="preview = !preview">{{preview ? "close" : "preview"}}</a></div><div ng-if="!student" style="display: inline-block; padding-right: 20px"><a draggable="false" ng-href="delete?active={{activeClass}}&hash={{path + file.hash}}" target="hidden-iframe">delete</a></div><div style="display: inline-block; width: 65px">{{file.date | date:"M/dd/yy"}}</div><div style="display: inline-block; width: 80px">{{file.date | date:"h:mma"}}</div></div><br />' + 
+				'<li draggable="true" ondragstart="(function(event){ event.dataTransfer.setData(\'text\', angular.element($(event.target)).scope().path + angular.element($(event.target)).scope().file.hash); })(event);" class="animate-repeat" style="position: relative; border-bottom: 1px solid #909090; text-align: right" ng-repeat="file in object.files | filter: {name: searchterm} | orderBy: \'-date\' track by file.hash" ng-if="currentDate >= file.reveal">' + 
+					'<a style="float: left" ng-href="download?active={{activeClass}}&hash={{path + file.hash}}" ng-bind="file.name"></a><div style="display: inline-block; padding-left: 20px"><div style="display: inline-block; padding-right: 20px"><a draggable="false" href="#" ng-click="preview = !preview">{{preview ? "close" : "preview"}}</a></div><div ng-if="!student" style="display: inline-block; padding-right: 20px"><a draggable="false" ng-href="delete?active={{activeClass}}&hash={{path + file.hash}}" target="hidden-iframe">delete</a></div><div style="display: inline-block; width: 65px">{{file.date | date:"M/dd/yy"}}</div><div style="display: inline-block; width: 80px">{{file.date | date:"h:mma"}}</div></div><br />' + 
 					'<div ng-if="preview" style="padding-bottom: 10px"><viewer hash="{{path + file.hash}}" active="{{activeClass}}"></viewer></div>' + 
 				'</li>' + 
 				//ng-if="folder.files || folder.folders"> will hide empty folders by default
 				'<li ng-class="divClass" class="animate-repeat noselect" style="padding-left: 20px" ng-repeat="(name, folder) in object.folders | folderfilter:searchterm"' + 
 					'<div class="noselect">' + 
 						'<p></p>' + 
-						'<div drag-and-drop draggable="true" ondragstart="(function(event){ event.dataTransfer.setData(\'mypath\', angular.element($(event.target)).scope().path); })(event);" class="titlebar" ng-style="{minWidth : (280 + (14 * path.split(\'/\')[path.split(\'/\').length - 2].length)) + \'px\'}" style="background-color: #F1F1F1; border: solid 1px #909090" ng-click="foldershow = !foldershow"><img draggable="false" src="folder.png" style="max-height: 40px; padding-top: 5px; padding-right: 5px; padding-left: 10px"> <span style="vertical-align: top; position: relative; top: 7px; left: 5px">{{name}}</span><span style="float: right"><button-group style="position: relative; bottom: 3px; right: 10px"></button-group><img draggable="false" ng-src="{{foldershow || searchterm ? \'expand.png\' : \'collapse.png\'}}" style="padding-top: 5px; max-height: 35px"></span></div></div>' + 
+						'<div drag-and-drop draggable="true" ondragstart="(function(event){ event.dataTransfer.setData(\'text\', angular.element($(event.target)).scope().path); })(event);" class="titlebar" ng-style="{minWidth : (280 + (14 * path.split(\'/\')[path.split(\'/\').length - 2].length)) + \'px\'}" style="background-color: #F1F1F1; border: solid 1px #909090" ng-click="foldershow = !foldershow"><img draggable="false" src="folder.png" style="max-height: 40px; padding-top: 5px; padding-right: 5px; padding-left: 10px"> <span style="vertical-align: top; position: relative; top: 7px; left: 5px">{{name}}</span><span style="float: right"><button-group style="position: relative; bottom: 3px; right: 10px"></button-group><img draggable="false" ng-src="{{foldershow || searchterm ? \'expand.png\' : \'collapse.png\'}}" style="padding-top: 5px; max-height: 35px"></span></div></div>' + 
 						'<folder ng-show="!foldershow || searchterm" data="folder" path="name"></folder>' + 
 					'</div>' + 
 				'</li>' + 
