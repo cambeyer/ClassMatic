@@ -91,3 +91,7 @@ select {
     -ms-user-select: none;
     user-select: none;
 }
+
+.AnyTime-pkr {
+	z-index: 999999
+}

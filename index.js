@@ -6,7 +6,6 @@ var fs = require('fs-extra');
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
 var crypto = require('crypto');
-var lockFile = require('lockfile');
 
 var dir = __dirname + '/files/';
 
@@ -174,7 +173,7 @@ var download = function(files, filename) {
 	if (filename.length == 1) {
 		if (files.files) {
 			for (var i = 0; i < files.files.length; i++) {
-				if (files.files[i].hash == filename[0] && files.files[i].reveal <= Date.now()) {
+				if (files.files[i].hash == filename[0]) { // && files.files[i].reveal <= Date.now()) {
 					return files.files[i].name;
 				}
 			}

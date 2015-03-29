@@ -9,6 +9,9 @@ angular.module('ClassMaticApp.controllers', []).controller('mainController', fun
 		folderName: "/",
 	}
 	
+	$scope.futureReveal = false;
+	$scope.revealTime;
+	
 	$scope.student = false;
 	
 	$scope.files = {};

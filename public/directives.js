@@ -6,7 +6,7 @@ directive('viewer', function ($location) {
 		replace: true,
 		link: function (scope, element, attrs) {
 			var link = $location.protocol() + "://" + $location.host() + ':' + $location.port() + '/download?active=' + attrs.active + '&hash=' + attrs.hash;
-			element.html('<div style="background-color: #F8F8F8; border: 1px solid #D8D8D8; padding: 20px; text-align: center"><div style="padding: 0px; line-height: 0px; display: none">' +
+			element.html('<div style="background-color: #F8F8F8; border: 1px solid #D8D8D8; padding: 20px; text-align: center; border-radius: 20px"><div style="padding: 0px; line-height: 0px; display: none">' +
 			'<video controls preload = "auto" style="max-height: 500px; max-width: 500px" src="' + link + '" onerror="if ($(this).siblings().length == 1) { $(this).parent().css(\'display\', \'\'); } $(this).remove();" oncanplay="if (this.duration > 0) { $(this).siblings().remove(); $(this).parent().css(\'display\', \'\'); } else { if ($(this).siblings().length == 1) { $(this).parent().css(\'display\', \'\'); } $(this).remove(); }"></video>' + 
 			'<img style="max-height: 400px; max-width: 400px" src="' + link + '" onerror="if ($(this).siblings().length == 1) { $(this).parent().css(\'display\', \'\'); } $(this).remove();" onload="$(this).siblings().remove(); $(this).parent().css(\'display\', \'\')">' + 
 			'<iframe src="https://docs.google.com/gview?url=' + encodeURIComponent(link) + '&embedded=true" style="width:600px; height:500px;" frameborder="0" onload="if ($(this).siblings().length == 0) { $(this).parent().css(\'display\', \'\'); }"></iframe>' +
@@ -86,9 +86,8 @@ directive('dragAndDrop', function($rootScope) {
 						$rootScope.$apply(function () {
 							$rootScope.fields.droppedFiles = [];
 							var dropped = e.originalEvent.dataTransfer.files; //no originalEvent if jQuery script is included after angular
-							var warned = false;
 							for (var i in dropped) {
-								if (dropped[i].type || (dropped[i].size && (dropped[i].size % 4096 !== 0 || dropped[i].size / 4096 > 5))) {
+								if (dropped[i].type || (dropped[i].size && (dropped[i].size % 4096 !== 0 || dropped[i].size / 4096 > 3))) {
 									$rootScope.fields.droppedFiles.push(dropped[i]);
 								}
 							}
@@ -138,8 +137,18 @@ directive('uploadForm', function($rootScope) {
 					'</td>' + 
 				'</tr>' + 
 				'<tr>' + 
+					'<td valign="top" align="left" colspan="2">' + 
+						'<label><input ng-model="futureReveal" ng-disabled="fields.loading" type="checkbox"></input> Future Reveal</label><br />' + 
+						'<p>' + 
+							'<div ng-show="futureReveal"><span style="padding-right: 10px">Date: </span><input style="width: 170px" ng-required="futureReveal" ng-model="revealTime" id="datetimepicker" type="text" name="reveal"></input><script type="text/javascript">$("#datetimepicker").AnyTime_picker({' + 
+								'format: \'%m/%e/%Y %h:%i:%s %p\',' + 
+								'earliest: new Date(),' + 
+							'});</script></div>' + 
+						'</p>' + 
+					'</td>' + 
+				'</tr>' + 
+				'<tr>' + 
 					'<td colspan="2" align="center" style="padding-top: 20px">' + 
-						'<input type="hidden" name="reveal" value="{{currentDate - 1000}}"></input>' + 
 						'<input style="width: 60%; height: 40px" type="submit" ng-disabled="fields.loading" value="Submit"></input>' + 
 					'</td>' + 
 				'</tr>' + 
@@ -148,9 +157,19 @@ directive('uploadForm', function($rootScope) {
 			elem.bind('submit', function(e) {
 				//$(elem).children('table').css('background-color', '#FF9999');
 				e.preventDefault();
+				$scope.$apply(function () {
+					if ($scope.futureReveal) {
+						$scope.revealTime = new Date($scope.revealTime).getTime();
+					} else {
+						$scope.revealTime = "";
+					}
+				});
 				oData = new FormData(this);
+				$scope.$apply(function () {
+					$scope.futureReveal = false;
+				});
 				$rootScope.$apply(function () {
-					$rootScope.fields.loading = true;
+					$rootScope.fields.loading = true; //must be applied after the form data is grabbed since disabling the file input keeps it from actually uploading
 				});
 				for (var i = 0; i < $rootScope.fields.droppedFiles.length; i++) 
 				{
@@ -174,12 +193,14 @@ directive('uploadForm', function($rootScope) {
 								});	
 							}
 							document.getElementById('file').value = '';
+							$scope.revealTime = "";
 						} catch (e) {}
 					} else {
 						alert("There was an error uploading your file");
 					}
 				};
 				oReq.send(oData);
+				
 			});
 		}
 	};
@@ -190,8 +211,8 @@ directive('folder', function(RecursionHelper) {
 		restrict: 'E',
 		template: '' + 
 			'<ul drag-and-drop class="example-animate-container" ng-style="{borderLeft : ((object.files || object.folders) && path && \'1px solid #909090\') || \'\'}">' + 
-				'<li draggable="true" ondragstart="(function(event){ event.dataTransfer.setData(\'text\', angular.element($(event.target)).scope().path + angular.element($(event.target)).scope().file.hash); })(event);" class="animate-repeat" style="position: relative; border-bottom: 1px solid #909090; text-align: right" ng-repeat="file in object.files | filter: {name: searchterm} | orderBy: \'-date\' track by file.hash" ng-if="currentDate >= file.reveal">' + 
-					'<a draggable="false" style="float: left" ng-href="download?active={{activeClass}}&hash={{path + file.hash}}" ng-bind="file.name"></a><div style="display: inline-block; padding-left: 20px"><div style="display: inline-block; padding-right: 20px"><a draggable="false" href="#" ng-click="preview = !preview">{{preview ? "close" : "preview"}}</a></div><div ng-if="!student" style="display: inline-block; padding-right: 20px"><a draggable="false" ng-href="delete?active={{activeClass}}&hash={{path + file.hash}}" target="hidden-iframe">delete</a></div><div style="display: inline-block; width: 65px">{{file.date | date:"M/dd/yy"}}</div><div style="display: inline-block; width: 80px">{{file.date | date:"h:mma"}}</div></div><br />' + 
+				'<li draggable="true" ondragstart="(function(event){ event.dataTransfer.setData(\'text\', angular.element($(event.target)).scope().path + angular.element($(event.target)).scope().file.hash); })(event);" class="animate-repeat" style="position: relative; border-bottom: 1px solid #909090; text-align: right" ng-repeat="file in object.files | filter: {name: searchterm} | orderBy: \'-date\' track by file.hash" ng-if="!student || currentDate >= file.reveal">' + 
+					'<a draggable="false" style="float: left" ng-href="download?active={{activeClass}}&hash={{path + file.hash}}" ng-bind="file.name"></a><div style="display: inline-block; padding-left: 20px"><div style="display: inline-block; padding-right: 20px"><a draggable="false" href="#" ng-click="preview = !preview">{{preview ? "close" : "preview"}}</a></div><div ng-if="!student" style="display: inline-block; padding-right: 20px"><a draggable="false" ng-href="delete?active={{activeClass}}&hash={{path + file.hash}}" target="hidden-iframe">delete</a></div><div ng-if="currentDate >= file.reveal" style="display: inline-block; width: 65px">{{file.date | date:"M/dd/yy"}}</div><div ng-if="currentDate < file.reveal" style="display: inline-block; width: 65px; color: red">{{file.reveal | date:"M/dd/yy"}}</div><div ng-if="currentDate >= file.reveal" style="display: inline-block; width: 80px">{{file.date | date:"h:mma"}}</div><div ng-if="currentDate < file.reveal" style="display: inline-block; width: 80px; color: red">{{file.reveal | date:"h:mma"}}</div></div><br />' + 
 					'<div ng-if="preview" style="padding-bottom: 10px"><viewer hash="{{path + file.hash}}" active="{{activeClass}}"></viewer></div>' + 
 				'</li>' + 
 				//ng-if="folder.files || folder.folders"> will hide empty folders by default

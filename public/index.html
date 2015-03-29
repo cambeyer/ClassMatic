@@ -4,10 +4,12 @@
 	<title>ClassMatic</title>
 	<link rel="stylesheet" type="text/css" href="style.css">
 	<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Lato">
+	<link rel="stylesheet" type="text/css" href="./datetime/anytime.5.0.7.min.css">
 	<script src="http://code.jquery.com/jquery-2.1.3.min.js"></script>
 	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.0/angular.min.js"></script>
 	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.0/angular-animate.js"></script>
 	<script src="./socket.io/socket.io.js"></script>
+	<script src="./datetime/anytime.5.0.7.min.js"></script>
 	<script src="controllers.js"></script>
 	<script src="directives.js"></script>
 	<script src="services.js"></script>
@@ -18,13 +20,12 @@
 <body ng-app="ClassMaticApp" style="background-color: #F8F8F8">
 	<div ng-controller="mainController" style="height: 100%" drag-and-drop>
 		<iframe name="hidden-iframe" style="display: none;" onLoad="try { document.getElementById('title').value = ''; document.getElementById('file').value = ''; document.getElementById('folder').value = '' } catch (e) {}"></iframe>
-		<a href="http://www.ltu.edu"><img ng-src="ltu.png" style="max-height: 50px; position: fixed; top: 10px; left: 15px; z-index: 99999"></a>
 		<img ng-src="{{!fields.upload ? 'expand.png' : 'collapse.png'}}" style="max-height: 35px; position: fixed; right: 10px; top: 15px; z-index: 99999" ng-click="fields.upload = !fields.upload">
 		<div class="noselect" style="position: fixed; width: 100%; height: 64px; text-align: center; background-color: #66C166; border-bottom: solid 1px #909090; z-index: 9999" ng-click="fields.upload = !fields.upload"><h2 style="padding-top: 15px; margin-top: 0px; color: white"><span ng-if="fields.loading">Uploading...</span><span ng-if="!fields.loading">ClassMatic</span></h2></div>
 		<div style="position: fixed; width: 350px; height: 100%; text-align: center; top: 65px; left: 0px; border-right: 1px solid #909090; background-color: #C1E6C1; z-index: 9999" ng-show="fields.upload">
 			<div style="text-align: center; padding-top: 20px">
-				Student Mode: <input type="checkbox" ng-model="student" ng-true-value="true" ng-false-value="false"><p></p>
-				<form ng-if="!student" upload-form></form>
+				<label>Student Mode: <input type="checkbox" ng-model="student" ng-true-value="true" ng-false-value="false"></label><p></p>
+				<form ng-show="!student" upload-form></form>
 			</div>
 		</div>
 		<div ng-style="{paddingLeft : (fields.upload && '351px') || '0px'}" style="text-align: center; padding-top: 65px">
