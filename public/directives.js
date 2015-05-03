@@ -9,7 +9,9 @@ directive('loginform', function() {
 				'<table style="background-color: #66C166; color: white; padding: 30px; padding-left: 100px; padding-right: 100px; border-radius: 10px; border: 1px solid white" cellpadding="20" cellspacing="0" border="0" align="center">' + 
 					'<tr>' + 
 						'<td colspan="2">' + 
-							'<h2>ClassMatic Login</h2><span ng-if="error" style="color: #FFCCCC"><br>Incorrect login credentials, or you are not registered for courses</span>' + 
+							'<h2>ClassMatic Login</h2>' + 
+							'<span ng-if="error" style="color: #FFCCCC"><br>Incorrect login credentials, or you are not registered for courses</span>' + 
+							'<span ng-show="loading"><img src="loading.gif" style="max-width: 40px"></span>' + 
 						'</td>' + 
 					'</tr>' + 
 					'<tr>' + 

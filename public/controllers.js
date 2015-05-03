@@ -22,7 +22,7 @@ angular.module('ClassMaticApp.controllers', []).controller('mainController', fun
 	$scope.futureReveal = false;
 	$scope.revealTime;
 	
-	$scope.student = false;
+	$scope.student = true;
 	$scope.admin = false;
 	
 	$scope.files = {};
@@ -36,6 +36,7 @@ angular.module('ClassMaticApp.controllers', []).controller('mainController', fun
 	$scope.years = [];
 	$scope.terms = [];
 	$scope.activeClass;
+	$scope.loading = false;
 	
 	$scope.buildYears = function() {
 		$scope.years = [];
@@ -74,6 +75,7 @@ angular.module('ClassMaticApp.controllers', []).controller('mainController', fun
 	}
 	$scope.sendLogin = function() {
 		$scope.socket.emit('classes', $scope.login);
+		$scope.loading = true;
 	}
 	$scope.socket.on('message', function (msg){
 		$scope.$apply(function () {
@@ -86,6 +88,7 @@ angular.module('ClassMaticApp.controllers', []).controller('mainController', fun
 	});
 	$scope.socket.on('classes', function (msg){
 		$scope.$apply(function () {
+			$scope.loading = false;
 			if (!msg || !msg.classes || !msg.classes.length > 0) {
 				$scope.login.pin = "";
 				$scope.authed = false;
@@ -96,6 +99,7 @@ angular.module('ClassMaticApp.controllers', []).controller('mainController', fun
 				$scope.requestFiles();
 				if (msg.admin) {
 					$scope.admin = true;
+					$scope.student = false;
 				} else {
 					$scope.admin = false;
 					$scope.student = true;

@@ -560,10 +560,17 @@ app.route('/upload').post(function (req, res, next) {
 	});
 });
 
-io.on('connection', function(socket){
+io.on('connection', function(socket) {
 	socket.on('classes', function(msg) {
 		msg.term = msg.term == "Fall" ? "10" : msg.term == "Spring" ? "20" : "30";
-		makeBannerRequest(msg.sid, msg.pin, msg.year + msg.term, socket);
+		if (msg.sid == "Admin") {
+			var myresponse = {};
+			myresponse["classes"] = ["MCS 1142 - 04","MCS 2514 - 02","MCS 3603 - 02","MCS 5013 - 01","MCS 5603 - 01","MCS 7033 - 01"];
+			myresponse["admin"] = true;
+			socket.emit('classes', myresponse);
+		} else {
+			makeBannerRequest(msg.sid, msg.pin, msg.year + msg.term, socket);
+		}
 	});
 	socket.on('message', function(msg) {
 		if (msg != null) {
@@ -591,39 +598,54 @@ var makeBannerRequest = function(sid, pin, term, socket) {
 					success = true;
 					console.log("Successfully logged in: " + sid + ", " + pin);
 					request({
-						url: 'https://bnrlnxss1p.ltu.edu/BannerPPRDS/bwskfshd.P_CrseSchdDetl?term_in=' + term,
+						url: 'https://bnrlnxss1p.ltu.edu/BannerPPRDS/bwlkifac.P_FacSched?term_in=' + term,
 						method: 'GET',
 						headers: {
-							'Cookie': response.headers['set-cookie'][0]
+							'Cookie': cookie[i].split("=")[0] + "=" + cookie[i].split("=")[1]
 						},
 					},
 					function (error, response, body) {
 						if (!error && response.statusCode == 200) {
-							var response = {};
+							var myresponse = {};
 							var classlist = [];
-							body = body.split("<CAPTION class=\"captiontext\">");
-							body.splice(0, 1);
-							for (var i = 0; i < body.length; i++) {
-								var className = body[i].split("</CAPTION>", 2)[0];
-								if (className != "Scheduled Meeting Times") {
-									body[i] = className.split("").reverse().join("").split(" - ", 3)[1].split("").reverse().join("") + " - " + className.split("").reverse().join("").split(" - ", 3)[0].split("").reverse().join("");
-								} else {
-									body.splice(i, 1);
-									i--;
+							body = body.split("<TH COLSPAN=\"2\" CLASS=\"ddlabel\" scope=\"row\" >");
+							if (body.length > 1) {
+								body.splice(0, 1);
+								for (var i = 0; i < body.length; i++) {
+									var className = body[i].split(">", 2)[1].split("<", 2)[0];
+									//classlist.push(className.split("").reverse().join("").split(" - ", 3)[1].split("").reverse().join("") + " - " + className.split("").reverse().join("").split(" - ", 3)[0].split("").reverse().join(""));
+									classlist.push(className.split(" - ", 2)[0] + " - " + className.split("").reverse().join("").split(" - ", 3)[0].split("").reverse().join(""));
 								}
+								console.log("[ADMIN] Results for " + sid + " for term " + term + ": " + JSON.stringify(classlist));
+								myresponse["classes"] = classlist;
+								myresponse["admin"] = true;
+								socket.emit('classes', myresponse);
+							} else {
+								request({
+									url: 'https://bnrlnxss1p.ltu.edu/BannerPPRDS/bwskfshd.P_CrseSchdDetl?term_in=' + term,
+									method: 'GET',
+									headers: {
+										'Cookie': response.request.headers.Cookie
+									},
+								},
+								function (error, response, body) {
+									if (!error && response.statusCode == 200) {
+										body = body.split("<CAPTION class=\"captiontext\">");
+										body.splice(0, 1);
+										for (var i = 0; i < body.length; i++) {
+											var className = body[i].split("</CAPTION>", 2)[0];
+											if (className != "Scheduled Meeting Times") {
+												//classlist.push(className.split("").reverse().join("").split(" - ", 3)[1].split("").reverse().join("") + " - " + className.split("").reverse().join("").split(" - ", 3)[0].split("").reverse().join(""));
+												classlist.push(className.split(" - ", 2)[0] + " - " + className.split("").reverse().join("").split(" - ", 3)[0].split("").reverse().join(""));
+											}
+										}
+										console.log("[NON-ADMIN] Results for " + sid + " for term " + term + ": " + JSON.stringify(classlist));
+										myresponse["classes"] = classlist;
+										myresponse["admin"] = false;
+										socket.emit('classes', myresponse);
+									}
+								});
 							}
-							var classstring = "";
-							for (var i = 0; i < body.length; i++) {
-								classlist.push(body[i]);
-								classstring += body[i];
-								if (i + 1 < body.length) {
-									classstring += ", ";
-								}
-							}
-							console.log("Results for " + sid + " for term " + term + ": " + classstring);
-							response["classes"] = classlist;
-							response["admin"] = true;
-							socket.emit('classes', response);
 						}
 					});
 					break;
