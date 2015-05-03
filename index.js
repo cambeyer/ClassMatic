@@ -565,7 +565,7 @@ io.on('connection', function(socket) {
 		msg.term = msg.term == "Fall" ? "10" : msg.term == "Spring" ? "20" : "30";
 		if (msg.sid == "Admin") {
 			var myresponse = {};
-			myresponse["classes"] = ["MCS 1142 - 04","MCS 2514 - 02","MCS 3603 - 02","MCS 5013 - 01","MCS 5603 - 01","MCS 7033 - 01"];
+			myresponse["classes"] = ["Introduction to C - 04","Computer Science 2 - 02","Java (Honors) - 02","Web Server Programming - 01","Introduction to Bioinformatics - 01","Collaborative Research Proj 2 - 01"];
 			myresponse["admin"] = true;
 			socket.emit('classes', myresponse);
 		} else {
