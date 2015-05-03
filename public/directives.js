@@ -1,4 +1,47 @@
 angular.module('ClassMaticApp.directives', []).
+directive('loginform', function() {
+	return {
+		scope: false,
+		replace: true,
+		restrict: 'E',
+		template: '' + 
+			'<form ng-submit="sendLogin()">' + 
+				'<table style="background-color: #66C166; color: white; padding: 30px; padding-left: 100px; padding-right: 100px; border-radius: 10px; border: 1px solid white" cellpadding="20" cellspacing="0" border="0" align="center">' + 
+					'<tr>' + 
+						'<td colspan="2">' + 
+							'<h2>ClassMatic Login</h2><span ng-if="error" style="color: #FFCCCC"><br>Incorrect login credentials, or you are not registered for courses</span>' + 
+						'</td>' + 
+					'</tr>' + 
+					'<tr>' + 
+						'<td>Banner ID:</td>' + 
+						'<td>' + 
+							'<input class="loginctrl" type="text" ng-model="login.sid">' + 
+						'</td>' + 
+					'</tr>' + 
+					'<tr>' + 
+						'<td>PIN:</td>' + 
+						'<td>' + 
+							'<input class="loginctrl" type="password" ng-model="login.pin">' + 
+						'</td>' + 
+					'</tr>' + 
+					'<tr>' + 
+						'<td>Term:</td>' + 
+						'<td>' + 
+							'<select ng-model="login.term" ng-options="term for term in terms" ng-init="buildTerms()" style="float: left; width: 45%"><option ng-if="false"></option></select>' + 
+							'<select ng-model="login.year" ng-options="year for year in years" ng-init="buildYears()" style="float: right; width: 45%"><option ng-if="false"></option></select>' + 
+						'</td>' + 
+					'</tr>' + 
+					'<tr>' + 
+						'<td colspan="2">' + 
+							'<input ng-show="false" class="button" type="submit" value="Submit">' + 
+						'</td>' + 
+					'</tr>' + 
+				'</table>' + 
+			'</form>',
+		controller: function ($scope) {
+		}
+	};
+}).
 directive('viewer', function ($location) {
 	return {
 		restrict: 'E',
@@ -219,7 +262,7 @@ directive('folder', function(RecursionHelper) {
 				'<li ng-class="divClass" class="animate-repeat noselect" style="padding-left: 20px" ng-repeat="(name, folder) in object.folders | folderfilter:searchterm"' + 
 					'<div class="noselect">' + 
 						'<p></p>' + 
-						'<div drag-and-drop draggable="true" ondragstart="(function(event){ event.dataTransfer.setData(\'text\', angular.element($(event.target)).scope().path); })(event);" class="titlebar" ng-style="{minWidth : (280 + (14 * path.split(\'/\')[path.split(\'/\').length - 2].length)) + \'px\'}" style="background-color: #F1F1F1; border: solid 1px #909090" ng-click="foldershow = !foldershow"><img draggable="false" src="folder.png" style="max-height: 40px; padding-top: 5px; padding-right: 5px; padding-left: 10px"> <span style="vertical-align: top; position: relative; top: 7px; left: 5px">{{name}}</span><span style="float: right"><button-group style="position: relative; bottom: 3px; right: 10px"></button-group><img draggable="false" ng-src="{{foldershow || searchterm ? \'expand.png\' : \'collapse.png\'}}" style="padding-top: 5px; max-height: 35px"></span></div></div>' + 
+						'<div drag-and-drop draggable="true" ondragstart="(function(event){ event.dataTransfer.setData(\'text\', angular.element($(event.target)).scope().path); })(event);" class="titlebar" ng-style="{minWidth : (280 + (14 * path.split(\'/\')[path.split(\'/\').length - 2].length)) + \'px\'}" style="background-color: #F1F1F1; border: solid 1px #909090; border-radius: 10px" ng-click="foldershow = !foldershow"><img draggable="false" src="folder.png" style="max-height: 40px; padding-top: 5px; padding-right: 5px; padding-left: 10px"> <span style="vertical-align: top; position: relative; top: 7px; left: 5px">{{name}}</span><span style="float: right"><button-group style="position: relative; bottom: 3px; right: 10px"></button-group><img draggable="false" ng-src="{{foldershow || searchterm ? \'expand.png\' : \'collapse.png\'}}" style="padding-top: 5px; max-height: 35px"></span></div></div>' + 
 						'<folder ng-show="!foldershow || searchterm" data="folder" path="name"></folder>' + 
 					'</div>' + 
 				'</li>' + 

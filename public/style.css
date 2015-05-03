@@ -67,16 +67,21 @@ a.button {
 	background-color: white;
 }
 
-button {
+button, .button {
 	height: 40px;
 	padding-left: 20px;
 	padding-right: 20px;
 }
 
+.loginctrl {
+	height: 40px;
+	padding-left: 10px;
+	padding-right: 10px;
+}
+
 select {
 	border: 1px solid #909090;
 	background: #F1F1F1;
-	width: 200px;
 	padding: 10px;
 	-webkit-appearance: none;
 	-moz-appearance: none;
