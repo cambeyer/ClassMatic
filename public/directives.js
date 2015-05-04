@@ -39,7 +39,7 @@ directive('loginform', function() {
 					'</tr>' + 
 					'<tr>' + 
 						'<td colspan="2">' + 
-							'<input ng-show="false" class="button" type="submit" value="Submit">' + 
+							'<input class="mySubmit" type="submit" value="">' + 
 						'</td>' + 
 					'</tr>' + 
 				'</table>' + 

@@ -67,6 +67,15 @@ a.button {
 	background-color: white;
 }
 
+.mySubmit {
+    background:url(go.png) no-repeat;
+	background-size: 55px 55px;
+    cursor: pointer;
+    width: 60px;
+    height: 60px;
+    border: none;
+}
+
 button, .button {
 	height: 40px;
 	padding-left: 20px;
