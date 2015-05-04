@@ -1,5 +1,9 @@
+//all of the user-defined Angular directives
 angular.module('ClassMaticApp.directives', []).
 directive('loginform', function() {
+	//directive to display the login form
+	//bound to the list of classes, terms, years
+	//also bound to the login model and function to handle authentication
 	return {
 		scope: false,
 		replace: true,
@@ -45,12 +49,18 @@ directive('loginform', function() {
 	};
 }).
 directive('viewer', function ($location) {
+	//directive for inline file previewing
+	//has the capability to preview images, video, audio, pdfs, and text-based documents
+	//uses the Google viewer for documents, browser functionality for all others
 	return {
 		restrict: 'E',
 		scope: false,
 		replace: true,
 		link: function (scope, element, attrs) {
+			//builds a link to the server where this HTML is currently being served from, in the same format expected for downloading files
 			var link = $location.protocol() + "://" + $location.host() + ':' + $location.port() + '/download?active=' + attrs.active + '&hash=' + attrs.hash;
+			//relies on the onerror events of individual embedded elements to remove itself from the DOM
+			//successful loading removes the other embedded elements from the DOM
 			element.html('<div style="background-color: #F8F8F8; border: 1px solid #D8D8D8; padding: 20px; text-align: center; border-radius: 20px"><div style="padding: 0px; line-height: 0px; display: none">' +
 			'<video controls preload = "auto" style="max-height: 500px; max-width: 500px" src="' + link + '" onerror="if ($(this).siblings().length == 1) { $(this).parent().css(\'display\', \'\'); } $(this).remove();" oncanplay="if (this.duration > 0) { $(this).siblings().remove(); $(this).parent().css(\'display\', \'\'); } else { if ($(this).siblings().length == 1) { $(this).parent().css(\'display\', \'\'); } $(this).remove(); }"></video>' + 
 			'<img style="max-height: 400px; max-width: 400px" src="' + link + '" onerror="if ($(this).siblings().length == 1) { $(this).parent().css(\'display\', \'\'); } $(this).remove();" onload="$(this).siblings().remove(); $(this).parent().css(\'display\', \'\')">' + 
@@ -60,25 +70,32 @@ directive('viewer', function ($location) {
 	};
 }).
 directive('dragAndDrop', function($rootScope) {
+	//directive for dragging and dropping onto a container
 	return {
 		scope: false,
 		restrict: 'A',
 		link: function($scope, elem, attr) {
+			//bind to dragenter to apply green highlighting to folder titles
 			elem.bind('dragenter', function(e) {
+				//don't let this event pass on to the default handlers
 				e.stopPropagation();
 				e.preventDefault();
 				if ($scope.path && !$scope.student) {
 					elem.filter('.titlebar').css('background-color', '#66C166');
 				}
 			});
+			//bind to dragleave to remove green highlighting on folder titles
 			elem.bind('dragleave', function(e) {
+				//don't let this event pass on to the default handlers
 				e.stopPropagation();
 				e.preventDefault();
 				if ($scope.path && !$scope.student) {
 					elem.filter('.titlebar').css('background-color', '#F1F1F1');
 				}
 			});
+			//bind to dragover to provide a secondary mechanism for applying green highlighting on folder titles
 			elem.bind('dragover', function(e) {
+				//don't let this event pass on to the default handlers
 				e.stopPropagation();
 				e.preventDefault();
 				if ($scope.path && !$scope.student) {
@@ -86,6 +103,7 @@ directive('dragAndDrop', function($rootScope) {
 				}
 			});
 			
+			//auxiliary function to dynamically create a move link and click it for when a drag-drop action occurs
 			var moveFile = function (elem, source) {
 				var hash = source.split("/")[source.split("/").length - 1];
 				var destination;
@@ -112,26 +130,35 @@ directive('dragAndDrop', function($rootScope) {
 				}
 			}
 			
+			//bind to the drop action
 			elem.bind('drop', function(e) {
+				//don't let this event pass on to the default handlers
 				e.stopPropagation();
 				e.preventDefault();
 				if ($scope.path) {
 					elem.filter('.titlebar').css('background-color', '#F1F1F1');
 				}
+				//check to make sure we're not in student mode
 				if (!$scope.student) {
 					var go = true;
+					//if there is text data associated with the drop event, then interpret as a move and return
 					if (e.originalEvent.dataTransfer.getData("text") && e.originalEvent.dataTransfer.getData("text") !== undefined) {
 						moveFile(elem, e.originalEvent.dataTransfer.getData("text"));
 						return;
 					}
+					//if there are already files that have been dropped onto the interface, then alert the user they will be overwritten
 					if ($rootScope.fields.droppedFiles.length > 0) {
 						go = confirm("This will overwrite your previously dropped files.");
 					} 
+					//if the user accepted the overwrite or there was no conflict, parse the files and reflect it in the interface
 					if (go) {
 						$rootScope.$apply(function () {
+							//clear the old files that had been dropped
 							$rootScope.fields.droppedFiles = [];
 							var dropped = e.originalEvent.dataTransfer.files; //no originalEvent if jQuery script is included after angular
 							for (var i in dropped) {
+								//if the file has a type or a size that isn't a multiple of 4096 or is larger than 4096*3, then it is a file and not a folder
+								//we don't want to handle folders as that functionality is not available in any browsers outside of Chrome
 								if (dropped[i].type || (dropped[i].size && (dropped[i].size % 4096 !== 0 || dropped[i].size / 4096 > 3))) {
 									$rootScope.fields.droppedFiles.push(dropped[i]);
 								}
@@ -160,6 +187,7 @@ directive('dragAndDrop', function($rootScope) {
 	};
 }).
 directive('uploadForm', function($rootScope) {
+	//directive that controls the upload form
 	return {
 		scope: false,
 		restrict: 'A',
@@ -199,6 +227,7 @@ directive('uploadForm', function($rootScope) {
 				'</tr>' + 
 			'</table>',
 		link: function($scope, elem, attr) {
+			//when the form is submitted, take over that event
 			elem.bind('submit', function(e) {
 				//$(elem).children('table').css('background-color', '#FF9999');
 				e.preventDefault();
@@ -218,11 +247,15 @@ directive('uploadForm', function($rootScope) {
 				});
 				for (var i = 0; i < $rootScope.fields.droppedFiles.length; i++) 
 				{
+					//loop through all of the dropped files and append them to the formdata
 					oData.append($scope.activeClass, $rootScope.fields.droppedFiles[i]);
 				}
 				$rootScope.$apply(function () {
+					//clear out the dropped files before uploading this batch so if the user drops more on, those can be queued up for the next round after this is finished
 					$rootScope.fields.droppedFiles = [];
 				});
+				//we're sending the data to the server using XMLHttpRequest
+				//uploading to the /upload endpoint
 				var oReq = new XMLHttpRequest();
 				oReq.open("post", "upload", true);
 				oReq.onload = function(oEvent) {
@@ -244,6 +277,7 @@ directive('uploadForm', function($rootScope) {
 						alert("There was an error uploading your file");
 					}
 				};
+				//send the data
 				oReq.send(oData);
 				
 			});
@@ -251,6 +285,7 @@ directive('uploadForm', function($rootScope) {
 	};
 }).
 directive('folder', function(RecursionHelper) {
+	//directive that renders folders which may recursively contain other files and folders
 	return {
 		scope: false,
 		restrict: 'E',
@@ -270,13 +305,16 @@ directive('folder', function(RecursionHelper) {
 				'</li>' + 
 			'</ul>',
 		compile: function(element) {
+			//pull in the RecursionHelper service to handle rendering recursive content
 			return RecursionHelper.compile(element, function(scope, iElement, iAttrs, controller, transcludeFn){
 				scope.$watch(iAttrs.data, function (value){
 					if (value) {
+						//watches the attributes on this directive specified by the HTML, and whether those objects are changing and reapplies it here
 						scope.object = value;
 					}
 				});
 				scope.$watch(iAttrs.path, function (value){
+					//recursively at each level down inherits the path from the previous scope and redefines it again at this scope with the new value appended
 					if (value && scope.path !== undefined) {
 						scope.path += value + "/";
 					} else {
@@ -287,12 +325,14 @@ directive('folder', function(RecursionHelper) {
 		}
 	};
 }).directive('buttonGroup', function($rootScope) {
+	//directive to specify a common group of buttons for administrative purposes
 	return {
 		scope: false,
 		restrict: 'E',
 		template: '' + 
 			'<span ng-if="!student"><a draggable="false" class="button" href="" ng-click="uploadFolder($event)">Upload</a> <a draggable="false" class="button" target="hidden-iframe" ng-href="newfolder?active={{activeClass}}&path={{path + newname}}" ng-click="newFolder($event)"><img draggable="false" style="max-height: 30px; position: relative; top: 9px" src="newfolder.png"></a> <a draggable="false" ng-if="path" class="button" target="hidden-iframe" ng-href="deletefolder?active={{activeClass}}&path={{deletepath}}" ng-click="deleteFolder($event)"><img draggable="false" style="max-height: 30px; position: relative; top: 9px" src="delete.png"></a></span>',
 		controller: function ($scope, $rootScope) {
+			//function to handle uploading to a folder; pops open the upload form in this context
 			$scope.uploadFolder = function (e) {
 				e.stopPropagation();
 				$rootScope.fields.upload = true;
@@ -302,10 +342,12 @@ directive('folder', function(RecursionHelper) {
 					$rootScope.fields.folderName = "/";
 				}
 			}
+			//function to handle creating a new folder in the interface
 			$scope.newFolder = function (e) {
 				e.stopPropagation();
 				$scope.newname = prompt("Please enter a name for your new folder: ");
 				if ($scope.newname) {
+					//strips non alphanumeric characters from new folder names
 					$scope.newname = $scope.newname.replace(/([^a-z 0-9]+)/gi, '');
 					$rootScope.fields.upload = true;
 					$rootScope.fields.folderName = $scope.path + $scope.newname;
@@ -313,12 +355,16 @@ directive('folder', function(RecursionHelper) {
 					e.preventDefault();
 				}
 			}
+			//function to handle deleting a folder
 			$scope.deleteFolder = function (e) {
 				e.stopPropagation();
+				//confirms with the user before actually deleting
 				if (!confirm("This will delete the folder and all of its contents, and cannot be undone.  Are you sure?")) {
+					//if the user doesn't want to commit to deleting the folder, the link is prevented from loading
 					e.preventDefault();
 				} else {
 					if ($scope.path && $scope.path !== "") {
+						//constructs a deletepath for the dynamic destination of the ahref url to load into the hidden iframe to actually perform the deletion
 						$scope.deletepath = $scope.path.substring(0, $scope.path.length - 1);
 					} else {
 						$scope.deletepath = "/";

@@ -1,5 +1,6 @@
 angular.module('ClassMaticApp.services', [])
 .factory('RecursionHelper', ['$compile', function($compile){
+	//angular factory service that recompiles DOM contents recursively
 	return {
 		compile: function(element, link){
 			if(angular.isFunction(link)){
@@ -25,6 +26,7 @@ angular.module('ClassMaticApp.services', [])
 	};
 }]).
 filter('humanreadable', function () {
+	//converts paths to folders into end-user "human-readable" format by putting arrows instead of forward-slashes, and the phrase "No Folder" if uploading to root
 	return function (item) {
 		if (item.substring(0, 1) == '/') {
 			item = item.substring(1);
@@ -34,7 +36,9 @@ filter('humanreadable', function () {
 		}
 		return item.substring(0).replace(/\//g, " \u2192 ");
 	};
-}).filter('folderfilter', function() {
+}).
+filter('folderfilter', function() {
+	//filter for the real-time search based on file and folder names
 	var folderfilter = function(obj, searchterm) {
 		if (obj) {
 			if (obj.files || obj.folders) {
@@ -50,6 +54,7 @@ filter('humanreadable', function () {
 						if (folder.toLowerCase().indexOf(searchterm.toLowerCase()) > -1) {
 							return true;
 						}
+						//recursive call down the folder structure
 						if (folderfilter(obj.folders[folder], searchterm)) {
 							return true;
 						}

@@ -1,47 +1,126 @@
+<!--
+Sources consulted:
+
+https://www.npmjs.com/package/forever
+http://stackoverflow.com/questions/4018154/node-js-as-a-background-service
+https://github.com/Automattic/socket.io-client
+https://github.com/zapty/forever-service
+https://docs.angularjs.org/api/ng/service/$location
+http://henriquat.re/directives/introduction-to-directives/introductionToDirectives.html
+https://gist.github.com/CMCDragonkai/6282750
+http://stackoverflow.com/questions/18139375/angularjs-scope-watch-in-a-directive-isnt-being-called-after-ajax-request
+http://stackoverflow.com/questions/15533602/angular-bind-for-drop-event-listener-not-behaving-properly
+http://www.w3schools.com/jsref/met_win_confirm.asp
+http://hayageek.com/drag-and-drop-file-upload-jquery/
+http://www.htmlgoodies.com/html5/javascript/drag-files-into-the-browser-from-the-desktop-HTML5.html
+https://github.com/mscdex/busboy
+http://stackoverflow.com/questions/6010309/how-do-i-access-a-json-object-using-a-javascript-variable
+http://stackoverflow.com/questions/14430655/recursion-in-angular-directives
+http://stackoverflow.com/questions/12654631/why-does-angularjs-include-an-empty-option-in-select
+https://developer.mozilla.org/en-US/docs/Web/Guide/Using_FormData_Objects
+http://codewinds.com/blog/2013-08-04-nodejs-readable-streams.html
+https://github.com/angular/angular.js/wiki/The-Nuances-of-Scope-Prototypal-Inheritance
+http://stackoverflow.com/questions/15305900/angularjs-ng-model-input-type-number-to-rootscope-not-updating
+http://toddmotto.com/everything-about-custom-filters-in-angular-js/
+http://stackoverflow.com/questions/22504732/prioritize-ngclick-over-nghref-in-a-elements
+http://stackoverflow.com/questions/2116558/fastest-method-to-replace-all-instances-of-a-character-in-a-string
+http://stackoverflow.com/questions/8357058/how-to-make-a-href-link-look-like-a-button
+http://www.w3schools.com/css/css_link.asp
+http://stackoverflow.com/questions/12627586/is-node-js-rmdir-recursive-will-it-work-on-non-empty-directories
+http://www.geedew.com/remove-a-directory-that-is-not-empty-in-nodejs/
+http://stackoverflow.com/questions/20160058/how-to-change-opacity-with-ngstyle
+https://docs.angularjs.org/api/ng/directive/ngStyle
+https://www.npmjs.com/package/lockfile
+http://www.rajeshsegu.com/2012/08/html5-drag-and-drop-a-folder/
+https://developer.mozilla.org/en-US/docs/Web/API/FileEntry#File
+http://www.html5rocks.com/en/tutorials/file/filesystem/
+https://www.npmjs.com/package/activedirectory
+http://stackoverflow.com/questions/14180012/npm-install-for-some-packages-sqlite3-socket-io-fail-with-error-msb8020-on-wi
+http://windowsitpro.com/windows-server/q-how-can-i-quickly-obtain-list-domain-controllers-dcs-my-active-directory-ad-domain
+https://groups.google.com/forum/#!topic/angular/wiF2x67IUFA
+http://www.w3schools.com/html/html5_draganddrop.asp
+http://stackoverflow.com/questions/15424910/angularjs-access-scope-from-outside-js-function
+http://stackoverflow.com/questions/9399365/deep-extend-like-jquerys-for-nodejs
+http://stackoverflow.com/questions/6505300/dynamically-create-and-click-a-link-with-jquery
+http://stackoverflow.com/questions/16720967/datatransfer-setdata-does-not-work-in-ie9
+http://stackoverflow.com/questions/27092053/html5-drag-and-drop-only-images
+http://stackoverflow.com/questions/17922557/angularjs-how-to-check-for-changes-in-file-input-fields
+https://css-tricks.com/snippets/jquery/clear-a-file-input/
+http://stackoverflow.com/questions/17374146/angularjs-checkbox-checked-by-default-on-load-and-disables-select-list-when-chec
+http://stackoverflow.com/questions/306252/how-to-align-checkboxes-and-their-labels-consistently-cross-browsers
+http://stackoverflow.com/questions/6293588/how-to-create-an-html-checkbox-with-a-clickable-label
+http://stackoverflow.com/questions/20833761/creating-a-large-textbox-to-get-a-paragraph-input
+http://www.ama3.com/anytime/#AnyTime.picker.latest
+http://davidwalsh.name/javascript-clone-array
+-->
 <!doctype html>
 <html>
 	<head>
 	<title>ClassMatic</title>
+	<!--external stylesheet-->
 	<link rel="stylesheet" type="text/css" href="style.css">
+	<!--connect to Google Fonts-->
 	<link rel="stylesheet" type="text/css" href="http://fonts.googleapis.com/css?family=Lato">
+	<!--stylesheet for date picker for future reveal-->
 	<link rel="stylesheet" type="text/css" href="./datetime/anytime.5.0.7.min.css">
+	<!--jQuery library; must be referenced before Angular to get the full version-->
 	<script src="http://code.jquery.com/jquery-2.1.3.min.js"></script>
+	<!--AngularJS framework-->
 	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.0/angular.min.js"></script>
+	<!--Animations extension to AngularJS-->
 	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.0/angular-animate.js"></script>
+	<!--Socket.IO for websocket communication-->
 	<script src="./socket.io/socket.io.js"></script>
+	<!--date picker for future reveal-->
 	<script src="./datetime/anytime.5.0.7.min.js"></script>
+	<!--Angular user-defined controllers-->
 	<script src="controllers.js"></script>
+	<!--Angular user-defined directives-->
 	<script src="directives.js"></script>
+	<!--Angular user-defined services-->
 	<script src="services.js"></script>
 	<style type="text/css">
 		body { font-family: 'Lato', serif; }
 	</style>
 </head>
+<!--ng-app declares this as an Angular application-->
 <body ng-app="ClassMaticApp" style="background-color: #F8F8F8">
+	<!--drag-and-drop directive allows for event interception on the whole container-->
 	<div ng-controller="mainController" style="height: 100%" drag-and-drop>
+		<!--hidden iframe to load links for deleting, downloading, etc-->
 		<iframe name="hidden-iframe" style="display: none;" onLoad="try { document.getElementById('title').value = ''; document.getElementById('file').value = ''; document.getElementById('folder').value = '' } catch (e) {}"></iframe>
+		<!--login form; only appears if not authorized yet-->
 		<div style="background-color: #C1E6C1; position: fixed; top: 0px; left: 0px; width: 100%; height: 100%; z-index: 9999999; text-align: center" ng-if="!authed">
 			<table width="100%" height="100%" cellspacing="0" cellpadding="0">
 				<tr height="100%">
 					<td width="100%">
+						<!--custom directive with the login form specifics-->
 						<loginform></loginform>
 					</td>
 				</tr>
 			</table>
 		</div>
+		<!--expand/collapse indicator for the header bar-->
 		<img ng-src="{{!fields.upload ? 'expand.png' : 'collapse.png'}}" ng-show="admin" style="max-height: 35px; position: fixed; right: 10px; top: 15px; z-index: 99999" ng-click="fields.upload = !fields.upload">
+		<!--main header-->
 		<div class="noselect" style="position: fixed; width: 100%; height: 64px; text-align: center; background-color: #66C166; border-bottom: solid 1px #909090; z-index: 9999"><h2 style="padding-top: 15px; margin-top: 0px; color: white"><span ng-if="fields.loading">Uploading...</span><span ng-if="!fields.loading">ClassMatic</span></h2></div>
+		<!--upload form container-->
 		<div style="position: fixed; width: 350px; height: 100%; text-align: center; top: 65px; left: 0px; border-right: 1px solid #909090; background-color: #C1E6C1; z-index: 9999" ng-show="admin && fields.upload">
 			<div style="text-align: center; padding-top: 20px">
+				<!--allow admin users to toggle student mode-->
 				<label>Student Mode: <input type="checkbox" ng-model="student" ng-true-value="true" ng-false-value="false"></label><p></p>
+				<!--upload form custom directive-->
 				<form ng-show="!student" upload-form></form>
 			</div>
 		</div>
+		<!--main content area-->
 		<div ng-style="{paddingLeft : (fields.upload && '351px') || '0px'}" style="text-align: center; padding-top: 65px">
 			<div style="display: inline-block; text-align: left; width: 90%; max-width: 800px; padding: 20px">
 				<div style="padding-top: 30px; height: 60px; position: relative; min-width: 615px">
+					<!--dropdown for selecting a class, buttons for adminstering files, search box-->
 					<span style="position: absolute; top: 40px">Class: </span><select style="width: 200px; position: absolute; left: 60px" ng-options="class for class in classes" ng-change="requestFiles()" ng-init="requestFiles()" ng-model="activeClass"></select> <span style="padding-left: 50px"><button-group style="position: relative; top: -4px; left: 240px"></button-group></span><span style="float: right"><input type="search" style="height: 39px" placeholder="Search" ng-model="searchterm"></span>
 				</div>
+				<!--recursive custom directive that kicks off displaying all files and folders-->
 				<folder data='files[activeClass]'></folder>
 			</div>
 		</div>

@@ -18,6 +18,9 @@ var dir = __dirname + '/files/';
 //data structure to contain all file metadata
 var globalfiles;
 
+//endpoint for BannerWeb to perform authentication
+var BANNER_URL = "https://bnrlnxss1p.ltu.edu/BannerPPRDS/";
+
 app.use(busboy());
 //files in the public directory can be directly queried for via HTTP
 app.use(express.static(path.join(__dirname, 'public')));
@@ -340,6 +343,7 @@ var deleter = function(files, filename, activeClass, origfilename) {
 				files.files.splice(i, 1);
 				try {
 					origfilename = origfilename == "" ? "" : origfilename + "/";
+					//physically delete the file
 					fs.unlinkSync(dir + activeClass + "/" + origfilename + filename[0] + ".file");
 				} catch (e) {
 					console.log(e);
@@ -348,13 +352,16 @@ var deleter = function(files, filename, activeClass, origfilename) {
 				if (files.files.length == 0) {
 					delete files.files;
 				}
+				//if there is nothing left then return false to signal impending deletion
 				if ((!files.files && !files.folders) || (!files.files && Object.keys(files.folders).length == 0)) {
 					return false;
 				}
+				//if none of the above conditions are met, return true
 				return true;
 			}
 		}
 	}
+	//if calling this function returns false, then delete the relevant containers
 	if (!deleter(files.folders[filename[0]], filename.slice(1).join("/"), activeClass, origfilename + "/" + filename[0])) {
 		delete files.folders[filename[0]];
 		if (Object.keys(files.folders).length == 0) {
@@ -362,39 +369,51 @@ var deleter = function(files, filename, activeClass, origfilename) {
 		}
 		try {
 			console.log("Removing directory: " + filename[0]);
+			//physically remove the directory
 			fs.rmdirSync(dir + activeClass + "/" + origfilename + "/" + filename[0]);
 		} catch (e) {
 			console.log(e);
 		}
+		//if there are no files or folders in the folder, it shouldn't be kept
 		if (!files.files && !files.folders) {
 			return false;
 		}
 	}
+	//if the function returned true then return true also
 	return true;
 };
 
+//create an endpoint for downloading files
 app.get('/download', function(req, res){
 	try {
+		//extract the file to fetch and the class it's in from the request
 		var hash = req.query.hash;
 		var activeClass = req.query.active;
 		if (hash && activeClass) {
+			//get the filename by searching with the appropriate path in the appropriate class structure
 			var filename = download(checkClassDefined(activeClass), hash);
+			//if the filename exists, build the response by piping the file back with the filename
 			if (filename) {
 				console.log("Downloading: " + hash + " -> " + filename);
 				var file = dir + activeClass + "/" + hash + ".file";
+				//setting the header for attachment type with the name lets the browser know what's going on
 				res.setHeader('Content-disposition', 'attachment; filename=' + filename);
 				var filestream = fs.createReadStream(file);
+				//pipe the file into the response
 				filestream.pipe(res);
 			}
 		}
 	} catch (e) { console.log(e); res.redirect('back'); }
 });
 
+//create an endpoint for deleting files
 app.get('/delete', function(req, res){
 	try {
+		//extract the file to delete and the class it's in from the request
 		var hash = req.query.hash;
 		var activeClass = req.query.active;
 		if (hash && activeClass) {
+			//calling the deleter function actually deletes the file and additionally returns whether the class itself (since the function is recursive) should be kept
 			if (!deleter(checkClassDefined(activeClass), hash, activeClass, "")) {
 				try {
 					delete globalfiles[activeClass];
@@ -403,15 +422,20 @@ app.get('/delete', function(req, res){
 					console.log("Could not remove folder " + activeClass);
 				}
 			}
+			//update the master index file
 			writeIndexFile();
+			//send out an updated list of files to clients
 			io.emit('message', justOneClass(activeClass));
 			res.send('File deleted');
 		}
 	} catch (e) { console.log(e); res.send("Error deleting"); }
 });
 
+//create an endpoint for moving a file or folder
+//can also be used to rename folders
 app.get('/move', function(req, res) {
 	try {
+		//extract source, destination, and class from the request
 		var source = req.query.source;
 		var destination = req.query.destination;
 		var activeClass = req.query.active;
@@ -420,51 +444,71 @@ app.get('/move', function(req, res) {
 				source = source.substring(0, source.length - 1);
 				destination = destination.substring(0, destination.length - 1);
 				var sourcefolder = source.split("/")[source.split("/").length - 1];
+				//extract an object representing the source
 				var obj = getFileOrFolder(checkClassDefined(activeClass), source, true, true)[sourcefolder];
+				//add an entry corresponding to the destination
 				addWithoutCollisions(checkClassDefined(activeClass), destination + "/new", null);
+				//merge the destination with the source
 				mergeFolders(activeClass, destination, source, getFileOrFolder(checkClassDefined(activeClass), destination, true, false), obj);
 				console.log("Folder " + source + " physically moved to " + destination);
 			} else { //file
+				//physically rename the file with the new path
 				fs.renameSync(dir + activeClass + "/" + source + ".file", dir + activeClass + "/" + destination + ".file");
 				console.log("File " + source + " physically moved to " + destination);
+				//grab a reference to the file object and delete it
 				var obj = getFileOrFolder(checkClassDefined(activeClass), source, false, true);
+				//add the file reference back in at the destination
 				addWithoutCollisions(checkClassDefined(activeClass), destination, obj);
 			}
+			//update the master index file
 			writeIndexFile();
+			//send out an updated list of files to clients
 			io.emit('message', justOneClass(activeClass));
 			res.send('Moved');
 		}
 	} catch (e) { console.log(e); res.send("Error moving"); }
 });
 
+//create an endpoint for creating a new folder
+//normally the data structure is kept clean of empty folders, but in this case we explicitly allow them... or we wouldn't be able to create folders!
 app.get('/newfolder', function(req, res){
 	try {
 		var path = req.query.path;
 		var activeClass = req.query.active;
 		if (path && activeClass) {
+			//call the auxiliary function to physically create the new folder
 			createFolder(path, activeClass);
+			//call the auxiliary function to create space in the data structure
 			addWithoutCollisions(checkClassDefined(activeClass), path + "/new", null);
+			//update the master index files
 			writeIndexFile();
+			//send out an updated list of files to clients
 			io.emit('message', justOneClass(activeClass));
 			res.send('Folder created');
 		}
 	} catch (e) { console.log(e); res.send("Error creating"); }
 });
 
+//create an endpoint for deleting a folder
 app.get('/deletefolder', function(req, res){
 	try {
 		var path = req.query.path;
 		var activeClass = req.query.active;
 		if (path && activeClass) {
+			//remove the folder from the data structure and clean any empty folders above this one
 			folderDeleter(checkClassDefined(activeClass), path);
+			//physically delete the folder from disk
 			deleteFolderRecursive(dir + activeClass + "/" + path);
+			//update the master index file
 			writeIndexFile();
+			//send out an updated list of files to clients
 			io.emit('message', justOneClass(activeClass));
 			res.send('Folder deleted');
 		}
 	} catch (e) { console.log(e); res.send("Error deleting"); }
 });
 
+//create an endpoint for uploading a file
 app.route('/upload').post(function (req, res, next) {
 	var fstream;
 	var title;
@@ -472,25 +516,34 @@ app.route('/upload').post(function (req, res, next) {
 	var theFolder;
 	var alreadyUploaded = [];
 	req.pipe(req.busboy);
+	//when a field is encountered in the incoming form data
 	req.busboy.on('field',function (fieldname, val){
 		if (fieldname == 'title') {
+			//grab the file title if there is one
+			//this is something that was in earlier iterations of the product but aren't anymore
 			title = val;
 		} else if (fieldname == 'reveal') {
+			//grab the file reveal date
 			revealDate = val;
 		} else if (fieldname == 'folder') {
+			//replace non alphanumeric characters in the folder name
 			val = val.replace(/([^a-z \/0-9]+)/gi, '');
 			if (val.length > 1 && val.substring(0, 1) == '/') {
+				//strip off the leading forward-slash
 				val = val.substring(1);
 			}
 			theFolder = val;
 			console.log("Folder: " + theFolder);
 			if (theFolder.substring(0, 1) == '/') {
+				//if it's just a forward-slash then we're uploading to the root folder
 				theFolder = "";
 			}
 		}
 	});
+	//when a file is encountered, stream it in and save it appropriately
 	req.busboy.on('file', function (activeClass, file, filename) {
 		for (var i = 0; i < alreadyUploaded.length; i++) {
+			//don't upload files that have the same name as a file that's already been uploaded in this batch
 			if (alreadyUploaded[i] == filename) {
 				filename = undefined;
 				break;
@@ -503,34 +556,42 @@ app.route('/upload').post(function (req, res, next) {
 			} catch (e) { }
 			try { 
 				console.log("Uploading: " + filename);
+				//files are stored by their md5 hash
 				var hash = crypto.createHash('md5');
 				fstream = fs.createWriteStream(dir + filename);
 				file.on('data', function(chunk) {
+					//as chunks come in, update the hash
 					hash.update(chunk);
 				});
+				//when the file has finished being streamed in...
 				fstream.on('close', function () { 
-				
+					//create a file object to be pushed into the main data structure
 					var tempfile = {};
 					tempfile["name"] = filename;
 					if (title) {
 						tempfile["title"] = title;
 					}
 					tempfile["hash"] = hash.digest('hex');
+					//mark NOW as the upload date for the file
 					tempfile["date"] = Date.now();
 					if (revealDate) {
 						tempfile["reveal"] = revealDate;
 					} else {
+						//if there was not a future reveal date specified for the file, use the file's date instead (about NOW)
 						tempfile["reveal"] = tempfile["date"];
 					}
 					try {
 						console.log("Upload Finished of " + tempfile.name);
 						createFolder(theFolder, activeClass);
 						var newName;
+						//if the folder isn't the root folder, add that into the path
 						if (theFolder) {
 							newName = dir + activeClass + "/" + theFolder + "/" + tempfile.hash + ".file";
 						} else {
+							//if the folder is the root folder, just save directly into the class's root folder
 							newName = dir + activeClass + "/" + tempfile.hash + ".file";
 						}
+						//since the file was uploaded with its "real" filename, rename it to its hash and put it in the appropriate folder
 						fs.rename(dir + tempfile.name, newName, function (err) {
 							if (err) throw err;
 							if (theFolder) {
@@ -538,51 +599,68 @@ app.route('/upload').post(function (req, res, next) {
 							} else {
 								console.log('Renamed to ' + activeClass + "/" + tempfile.hash);
 							}
+							//add the file object into the data structure where appropriate
 							addWithoutCollisions(checkClassDefined(activeClass), theFolder + "/" + tempfile.hash, tempfile);
+							//update the master list of files
 							writeIndexFile();
+							//update the clients with the new list of files
 							io.emit('message', justOneClass(activeClass));
 						});
 					} catch (e) {
 						console.log(e);
 					}
 				});
+				//pipe the incoming file to the stream which is listening for chunk updates, etc.
 				file.pipe(fstream);
 			} catch (e) {
 				console.log("Error during upload");
 			}
 		} else {
+			//if there isn't a filename (since it was manually set to undefined because a file with the same name was already uploaded) then skip uploading the file
 			file.resume();
 		}
 	});
+	//when the entire request has been processed, send back a success header and close the connection
 	req.busboy.on('finish', function () {
 		res.writeHead(200, { Connection: 'close', Location: '/' });
 		res.end();
 	});
 });
 
+//when a new client connects
 io.on('connection', function(socket) {
+	//add a listener for when the client sends a message asking for which classes it can access
 	socket.on('classes', function(msg) {
+		//convert the requested term into the Banner equivalent
 		msg.term = msg.term == "Fall" ? "10" : msg.term == "Spring" ? "20" : "30";
+		//manual response for Admin for demonstration purposes
 		if (msg.sid == "Admin") {
 			var myresponse = {};
 			myresponse["classes"] = ["Introduction to C - 04","Computer Science 2 - 02","Java (Honors) - 02","Web Server Programming - 01","Introduction to Bioinformatics - 01","Collaborative Research Proj 2 - 01"];
 			myresponse["admin"] = true;
 			socket.emit('classes', myresponse);
 		} else {
+			//for any user besides the hard-coded admin, query BannerWeb for their list of classes and whether they should be able to administer them, etc.
 			makeBannerRequest(msg.sid, msg.pin, msg.year + msg.term, socket);
 		}
 	});
+	//add a listener for when the client sends a message asking for the files/folders for a certain class
 	socket.on('message', function(msg) {
 		if (msg != null) {
 			console.log('Received ' + msg);
+			//send out the list of files/folders that the client requested, just to them and not everyone
 			socket.emit('message', justOneClass(msg));
 		}
 	});
 });
 
+//function to query BannerWeb for a user's class list
+//checks to see if the user is faculty and fetches the classes they're teaching...
+//...otherwise if they're a student then it fetches their class list and makes them non-admins
 var makeBannerRequest = function(sid, pin, term, socket) {
+	//make a GET request to authenticate the user and obtain a session id to use in subsequent requests
 	request({
-		url: 'https://bnrlnxss1p.ltu.edu/BannerPPRDS/twbkwbis.P_ValLogin?sid=' + sid + "&PIN=" + pin,
+		url: BANNER_URL + 'twbkwbis.P_ValLogin?sid=' + sid + "&PIN=" + pin,
 		method: 'GET',
 		headers: {
 			'Cookie': 'TESTID=set'
@@ -590,6 +668,7 @@ var makeBannerRequest = function(sid, pin, term, socket) {
 	},
 	function (error, response, body) {
 		if (!error && response.statusCode == 200) {
+			//parse out the session id from the response cookies
 			var cookie = response.headers['set-cookie'][0];
 			cookie = cookie.split(";");
 			var success = false;
@@ -597,10 +676,12 @@ var makeBannerRequest = function(sid, pin, term, socket) {
 				if (cookie[i].split("=")[0] == "SESSID" && cookie[i].split("=")[1]) {
 					success = true;
 					console.log("Successfully logged in: " + sid + ", " + pin);
+					//make a second request for the faculty schedule for the user
 					request({
-						url: 'https://bnrlnxss1p.ltu.edu/BannerPPRDS/bwlkifac.P_FacSched?term_in=' + term,
+						url: BANNER_URL + 'bwlkifac.P_FacSched?term_in=' + term,
 						method: 'GET',
 						headers: {
+							//use the aforementioned session id to authenticate the query
 							'Cookie': cookie[i].split("=")[0] + "=" + cookie[i].split("=")[1]
 						},
 					},
@@ -608,40 +689,54 @@ var makeBannerRequest = function(sid, pin, term, socket) {
 						if (!error && response.statusCode == 200) {
 							var myresponse = {};
 							var classlist = [];
+							//if the user is a faculty member and teaching classes, splitting in this format will parse the class names
 							body = body.split("<TH COLSPAN=\"2\" CLASS=\"ddlabel\" scope=\"row\" >");
+							//if the split yielded more than 1 object, there are indeed classes to extract names for
 							if (body.length > 1) {
+								//remove the first match
 								body.splice(0, 1);
 								for (var i = 0; i < body.length; i++) {
+									//split the match further to extract just the name and not subsequent information
 									var className = body[i].split(">", 2)[1].split("<", 2)[0];
-									//classlist.push(className.split("").reverse().join("").split(" - ", 3)[1].split("").reverse().join("") + " - " + className.split("").reverse().join("").split(" - ", 3)[0].split("").reverse().join(""));
+									//push the class name (name and section number) into the class list that will be sent back to the user
 									classlist.push(className.split(" - ", 2)[0] + " - " + className.split("").reverse().join("").split(" - ", 3)[0].split("").reverse().join(""));
 								}
 								console.log("[ADMIN] Results for " + sid + " for term " + term + ": " + JSON.stringify(classlist));
 								myresponse["classes"] = classlist;
+								//make the user admin over these classes
 								myresponse["admin"] = true;
+								//send the response
 								socket.emit('classes', myresponse);
 							} else {
+								//make a third request since the user is not a faculty member teaching classes... get the student detail schedule
 								request({
-									url: 'https://bnrlnxss1p.ltu.edu/BannerPPRDS/bwskfshd.P_CrseSchdDetl?term_in=' + term,
+									url: BANNER_URL + 'bwskfshd.P_CrseSchdDetl?term_in=' + term,
 									method: 'GET',
 									headers: {
+										//re-use the session ID cookie from the last request's headers
 										'Cookie': response.request.headers.Cookie
 									},
 								},
 								function (error, response, body) {
 									if (!error && response.statusCode == 200) {
+										//if the user is a student and enrolled in classes, splitting in this format will parse the class names
 										body = body.split("<CAPTION class=\"captiontext\">");
+										//remove the first match
 										body.splice(0, 1);
 										for (var i = 0; i < body.length; i++) {
+											//split the match further to extract just the name and not subsequent information
 											var className = body[i].split("</CAPTION>", 2)[0];
+											//unavoidably, "Scheduled Meeting Times" also matches the split criteria so just ignore it
 											if (className != "Scheduled Meeting Times") {
-												//classlist.push(className.split("").reverse().join("").split(" - ", 3)[1].split("").reverse().join("") + " - " + className.split("").reverse().join("").split(" - ", 3)[0].split("").reverse().join(""));
+												//push the class name (name and section number) into the class list that will be sent back to the user
 												classlist.push(className.split(" - ", 2)[0] + " - " + className.split("").reverse().join("").split(" - ", 3)[0].split("").reverse().join(""));
 											}
 										}
 										console.log("[NON-ADMIN] Results for " + sid + " for term " + term + ": " + JSON.stringify(classlist));
 										myresponse["classes"] = classlist;
+										//make the user non-admin over these classes
 										myresponse["admin"] = false;
+										//send the response
 										socket.emit('classes', myresponse);
 									}
 								});
@@ -651,6 +746,7 @@ var makeBannerRequest = function(sid, pin, term, socket) {
 					break;
 				}
 			}
+			//if the user was not successfully logged in (there is no session id header) then send back an error
 			if (!success) {
 				console.log("Authorization failed for: " + sid + ", " + pin);
 				socket.emit('classes', 'Error');
@@ -659,11 +755,18 @@ var makeBannerRequest = function(sid, pin, term, socket) {
 	});
 }
 
+//function to start the web server on port 3000
 http.listen(3000, "0.0.0.0", function(){
 	console.log('listening on *:3000');
+	//try to make the directory where the files will be stored... if it's already created the catch block will ignore that
 	try {
+		fs.mkdirSync(dir);
+	} catch (e) { }
+	try {
+		//attempt to read the global index of files contained in the system
 		globalfiles = JSON.parse(fs.readFileSync(dir + "files.json", 'utf8'));
 	} catch (e) {
+		//if there is an error with the file or it doesn't exist, then set the data structure to an empty object
 		globalfiles = {};
 	}
 });
